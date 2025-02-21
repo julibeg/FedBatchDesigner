@@ -521,6 +521,28 @@ with ui.navset_bar(id="navbar", title=None):
                     assumed to be the same as in the first stage.
                     """
                 )
+                ui.p(
+                    f"""
+                    Some of these parameters are determined by your experimental setup
+                    (e.g. {params.feed["V_max"].label}). Others can be found in the
+                    literature (e.g. {params.stage_specific["rho"].label} for your
+                    production organism) and some need to be estimated from experimental
+                    data (usually the specific productivities
+                    {params.stage_specific["pi_0"].label} and
+                    {params.stage_specific["pi_1"].label}). Tutorials on how to do this
+                    can be found
+                    """,
+                    " ",
+                    ui.tags.a(
+                        "on github",
+                        href=(
+                            "https://github.com/julibeg/"
+                            "FedBatchDesigner/tree/main/case-studies"
+                        ),
+                        target="_blank",
+                    ),
+                    ".",
+                )
                 # Buttons container
             with ui.div(
                 style=(
