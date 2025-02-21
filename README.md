@@ -17,9 +17,9 @@ A user-friendly web tool for modeling and optimizing growth-arrested fed-batch b
 ```bash
 git clone https://github.com/julibeg/FedBatchDesigner.git
 cd FedBatchDesigner
-conda create -f env.yml -n fbd -y
+conda env create -f env.yml -n fbd -y
 conda activate fbd
-shiny run FedBatchDesigner/app.py
+shiny run FedBatchDesigner/app.py -b
 ```
 
 ## Usage
