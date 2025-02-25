@@ -30,7 +30,7 @@ PARSED_PARAMS = reactive.value(None)
 DF_GRID_SEARCH_MU = reactive.value(None)
 DF_GRID_SEARCH_F = reactive.value(None)
 
-ui.page_opts(title="Two-stage fed-batch", full_width=True, id="page")
+ui.page_opts(title="FedBatchDesigner", full_width=True, id="page")
 
 # include MathJax CDN in the head of the HTML document; to render formulas in Shiny HTML
 # elements, use `\(...\)`; in plotly plots use `$...$`.
