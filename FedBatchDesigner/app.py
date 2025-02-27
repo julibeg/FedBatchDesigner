@@ -831,8 +831,44 @@ def validate_V_max(value):
         return "'V_max' must be larger than 'V_batch'"
 
 
+def validate_mu_max(value):
+    # we still need to call `validate_param()` since `InputValidator` only keeps track
+    # of the last validation rule (i.e. `validate_param` added as rule above is
+    # overwritten)
+    msg = validate_param(value, True)
+    if msg is not None:
+        return msg
+    try:
+        # only compare with `mu_max` if it has already been provided
+        mu_min = float(input["mu_min"]())
+    except ValueError:
+        return
+    if float(value) <= mu_min:
+        return "'mu_max' must be larger than 'mu_min'"
+
+def validate_mu_min(value):
+    # `mu_min` isn't required -> return if hasn't been provided
+    if not value:
+        return
+    # we still need to call `validate_param()` since `InputValidator` only keeps track
+    # of the last validation rule (i.e. `validate_param` added as rule above is
+    # overwritten)
+    msg = validate_param(value, False)
+    if msg is not None:
+        return msg
+    try:
+        # only compare with `mu_max` if it has already been provided
+        mu_max = float(input["mu_max"]())
+    except ValueError:
+        return
+    if float(value) >= mu_max:
+        return "'mu_min' must be smaller than 'mu_max'"
+
+
 input_validator.add_rule("V_batch", validate_V_batch)
 input_validator.add_rule("V_max", validate_V_max)
+input_validator.add_rule("mu_min", validate_mu_min)
+input_validator.add_rule("mu_max", validate_mu_max)
 
 
 @reactive.effect
