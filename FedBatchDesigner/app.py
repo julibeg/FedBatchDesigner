@@ -20,6 +20,7 @@ from process_stages import (
 )
 
 # some global variables
+APP_NAME = "FedBatchDesigner"
 N_MINIMUM_LEVELS_FOR_MU_OR_F = 15
 V_FRAC_STEP = 0.02
 ROUND_DIGITS = 5
@@ -362,7 +363,9 @@ def results(input, output, session, exp_or_const):
 
                     @render.download(
                         label="Download CSV",
-                        filename=f"two_stage_feed_grid_search_{exp_or_const}.csv",
+                        filename=(
+                            f"{APP_NAME}_grid_search_results_{exp_or_const}_feed.csv"
+                        ),
                     )
                     def download_grid_search_results():
                         yield df_comb.to_csv()
@@ -429,7 +432,10 @@ def results(input, output, session, exp_or_const):
 
                             @render.download(
                                 label="Download CSV",
-                                filename=f"two_stage_feed_optimal_{exp_or_const}.csv",
+                                filename=(
+                                    f"{APP_NAME}_optimal_process_"
+                                    f"{exp_or_const}_feed.csv"
+                                ),
                             )
                             def download_optimal():
                                 yield opt_row.to_csv(
@@ -498,7 +504,8 @@ def results(input, output, session, exp_or_const):
                                 @render.download(
                                     label="Download CSV",
                                     filename=(
-                                        f"two_stage_feed_selected_{exp_or_const}.csv"
+                                        f"{APP_NAME}_selected_process_"
+                                        f"{exp_or_const}_feed.csv"
                                     ),
                                 )
                                 def download_selected():
