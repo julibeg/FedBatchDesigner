@@ -1,4 +1,5 @@
 import functools
+import time
 
 import numpy as np
 import pandas as pd
@@ -242,6 +243,19 @@ def submit_button():
             type="error",
             duration=10,
         )
+        time.sleep(2)
+        ui.modal_remove()
+
+    except Exception:
+        ui.notification_show(
+            """
+            An error occurred. Please check the input parameters and make sure that all
+            values are valid.
+            """,
+            type="error",
+            duration=10,
+        )
+        time.sleep(2)
         ui.modal_remove()
 
 
