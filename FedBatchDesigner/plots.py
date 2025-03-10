@@ -324,10 +324,14 @@ class LinePlot(PlotWithMarkers):
 class SelectedProcessPlot(Plot):
     """Simple line chart showing V, X, P vs. process time."""
 
-    def __init__(self, *, params, stage_1_class, stage_2_class, **kwargs):
+    def __init__(
+        self, *, params, stage_1_class, stage_2_class, concentrations, **kwargs
+    ):
         self.params = params
         self.stage_1_class = stage_1_class
         self.stage_2_class = stage_2_class
+        self.x_or_X = "x" if concentrations else "X"
+        self.p_or_P = "p" if concentrations else "P"
         super().__init__(**kwargs)
 
     def get_process_trajectory(self, mu_or_F, V_frac):
@@ -364,81 +368,26 @@ class SelectedProcessPlot(Plot):
 
         time_param = results[df.index.name]
 
-        # plot V
-        fig.add_trace(
-            go.Scatter(
-                x=df.index,
-                y=df["V"],
-                name="",
-                line=dict(color="black"),
-                yaxis="y1",
-                hovertemplate=(
-                    f"{time_param.label}=%{{x:.2f}} {time_param.unit}<br>"
-                    f"{results['V'].label}=%{{y:.2f}} {results['V'].unit}"
-                ),
-            )
-        )
-
-        # plot X (absolute value)
-        fig.add_trace(
-            go.Scatter(
-                x=df.index,
-                y=df["X"],
-                name="",
-                line=dict(color=colors.red),
-                yaxis="y2",
-                hovertemplate=(
-                    f"{time_param.label}=%{{x:.2f}} {time_param.unit}<br>"
-                    f"{results['X'].label}=%{{y:.2f}} {results['X'].unit}"
-                ),
-            )
-        )
-
-        # plot P (absolute value)
-        fig.add_trace(
-            go.Scatter(
-                x=df.index,
-                y=df["P"],
-                name="",
-                line=dict(color=colors.blue),
-                yaxis="y3",
-                hovertemplate=(
-                    f"{time_param.label}=%{{x:.2f}} {time_param.unit}<br>"
-                    f"{results['P'].label}=%{{y:.2f}} {results['P'].unit}"
-                ),
-            )
-        )
-
-        # plot x (concentration)
-        fig.add_trace(
-            go.Scatter(
-                x=df.index,
-                y=df["x"],
-                name="",
-                line=dict(color=colors.red),
-                yaxis="y2",
-                hovertemplate=(
-                    f"{time_param.label}=%{{x:.2f}} {time_param.unit}<br>"
-                    f"{results['x'].label}=%{{y:.2f}} {results['x'].unit}"
-                ),
-                visible=False,
-            )
-        )
-
-        # plot p (concentration)
-        fig.add_trace(
-            go.Scatter(
-                x=df.index,
-                y=df["p"],
-                name="",
-                line=dict(color=colors.blue),
-                yaxis="y3",
-                hovertemplate=(
-                    f"{time_param.label}=%{{x:.2f}} {time_param.unit}<br>"
-                    f"{results['p'].label}=%{{y:.2f}} {results['p'].unit}"
-                ),
-                visible=False,
-            )
+        fig.add_traces(
+            [
+                go.Scatter(
+                    x=df.index,
+                    y=df[column],
+                    name="",
+                    line=dict(color=color),
+                    yaxis=f"y{i + 1}",
+                    hovertemplate=(
+                        f"{time_param.label}=%{{x:.2f}} {time_param.unit}<br>"
+                        f"{results[column].label}=%{{y:.2f}} {results[column].unit}"
+                    ),
+                )
+                for i, (column, color) in enumerate(
+                    zip(
+                        ["V", self.x_or_X, self.p_or_P],
+                        ["black", colors.red, colors.blue],
+                    )
+                )
+            ]
         )
 
         # vertical line at t_switch
@@ -466,7 +415,7 @@ class SelectedProcessPlot(Plot):
                 tickfont=dict(color="black"),
             ),
             yaxis2=dict(
-                title=str(results["X"]),
+                title=str(results[self.x_or_X]),
                 titlefont=dict(color=colors.red),
                 tickfont=dict(color=colors.red),
                 overlaying="y",
@@ -476,7 +425,7 @@ class SelectedProcessPlot(Plot):
             # axis but with a factor for P to make it better visible (and add the factor
             # to the label / legend)
             yaxis3=dict(
-                title=str(results["P"]),
+                title=str(results[self.p_or_P]),
                 titlefont=dict(color=colors.blue),
                 tickfont=dict(color=colors.blue),
                 overlaying="y",
@@ -484,40 +433,6 @@ class SelectedProcessPlot(Plot):
                 position=1,
             ),
             showlegend=False,
-            updatemenus=[
-                dict(
-                    direction="left",
-                    type="buttons",
-                    x=0.5,
-                    xanchor="center",
-                    y=1.05,
-                    yanchor="bottom",
-                    buttons=[
-                        dict(
-                            label="Total",
-                            method="update",
-                            args=[
-                                {"visible": [True, True, True, False, False]},
-                                {
-                                    "yaxis2.title": str(results["X"]),
-                                    "yaxis3.title": str(results["P"]),
-                                },
-                            ],
-                        ),
-                        dict(
-                            label="Concentrations",
-                            method="update",
-                            args=[
-                                {"visible": [True, False, False, True, True]},
-                                {
-                                    "yaxis2.title": str(results["x"]),
-                                    "yaxis3.title": str(results["p"]),
-                                },
-                            ],
-                        ),
-                    ],
-                )
-            ],
         )
 
         self._fig = fig
@@ -528,7 +443,7 @@ class SelectedProcessPlot(Plot):
         # get the trajectory of the new process
         df = self.get_process_trajectory(mu_or_F, V_frac)
         # update the traces
-        for i, col in enumerate(["V", "X", "P", "x", "p"]):
+        for i, col in enumerate(["V", self.x_or_X, self.p_or_P]):
             self.fig.update_traces(selector=i, x=df.index, y=df[col])
         # update the vertical line at `t_switch`
         t_switch = self.df.loc[(mu_or_F, V_frac)]["t_switch"]

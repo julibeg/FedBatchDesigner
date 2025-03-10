@@ -346,18 +346,38 @@ def results(input, output, session, exp_or_const):
                             y_col="space_time_yield",
                         ).fig
 
-                    @render_plotly
-                    def selected_process_plot():
+                    with ui.navset_bar(title="Process trajectory"):
+                        with ui.nav_panel("Total"):
 
-                        return plots.SelectedProcessPlot(
-                            linked_plots=linked_plots,
-                            selected_process=selected_process,
-                            df=df_comb,
-                            mu_or_F=mu_or_F,
-                            params=parsed_params,
-                            stage_1_class=ConstS1 if mu_or_F == "F" else ExpS1,
-                            stage_2_class=NoGrowthS2,
-                        ).fig
+                            @render_plotly
+                            def selected_process_plot_total():
+
+                                return plots.SelectedProcessPlot(
+                                    linked_plots=linked_plots,
+                                    selected_process=selected_process,
+                                    df=df_comb,
+                                    mu_or_F=mu_or_F,
+                                    params=parsed_params,
+                                    stage_1_class=ConstS1 if mu_or_F == "F" else ExpS1,
+                                    stage_2_class=NoGrowthS2,
+                                    concentrations=False,
+                                ).fig
+
+                        with ui.nav_panel("Concentrations"):
+
+                            @render_plotly
+                            def selected_process_plot_concentrations():
+
+                                return plots.SelectedProcessPlot(
+                                    linked_plots=linked_plots,
+                                    selected_process=selected_process,
+                                    df=df_comb,
+                                    mu_or_F=mu_or_F,
+                                    params=parsed_params,
+                                    stage_1_class=ConstS1 if mu_or_F == "F" else ExpS1,
+                                    stage_2_class=NoGrowthS2,
+                                    concentrations=True,
+                                ).fig
 
             # this is the column with width 3; it contains a button to download the grid
             # search results as CSV and the details of the optimal and selected
@@ -859,6 +879,7 @@ def validate_mu_max(value):
         return
     if float(value) <= mu_min:
         return "'mu_max' must be larger than 'mu_min'"
+
 
 def validate_mu_min(value):
     # `mu_min` isn't required -> return if hasn't been provided
