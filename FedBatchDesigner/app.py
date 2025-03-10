@@ -315,21 +315,6 @@ def results(input, output, session, exp_or_const):
                             n_contours=N_CONTOURS,
                         ).fig
 
-                    @render_plotly
-                    def yield_contour_plot():
-
-                        return plots.ContourPlot(
-                            linked_plots=linked_plots,
-                            selected_process=selected_process,
-                            df=df_comb,
-                            mu_or_F=mu_or_F,
-                            x_col="V_frac",
-                            y_col=mu_or_F,
-                            z_col="p2",
-                            text_col="space_time_yield",
-                            n_contours=N_CONTOURS,
-                        ).fig
-
                 with ui.card():
                     # the productivity-vs-yield traces and plot with the trajectory
                     # of the selected process go into the center column
@@ -346,6 +331,24 @@ def results(input, output, session, exp_or_const):
                             y_col="space_time_yield",
                         ).fig
 
+                with ui.card():
+
+                    @render_plotly
+                    def yield_contour_plot():
+
+                        return plots.ContourPlot(
+                            linked_plots=linked_plots,
+                            selected_process=selected_process,
+                            df=df_comb,
+                            mu_or_F=mu_or_F,
+                            x_col="V_frac",
+                            y_col=mu_or_F,
+                            z_col="p2",
+                            text_col="space_time_yield",
+                            n_contours=N_CONTOURS,
+                        ).fig
+
+                with ui.card():
                     with ui.navset_bar(title="Process trajectory"):
                         with ui.nav_panel("Total"):
 
