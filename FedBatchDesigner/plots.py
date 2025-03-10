@@ -32,6 +32,7 @@ class Plot(ABC):
             self.linked_plots = linked_plots
             self.linked_plots.append(self)
         self.selected_process = selected_process
+        self.fig.update_layout(modebar={"orientation": "v"})
 
     def _update_plots(self, **kwargs):
         """Update all plots by calling their `.update()` method."""
