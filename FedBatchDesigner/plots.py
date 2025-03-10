@@ -470,7 +470,7 @@ class SelectedProcessPlot(Plot):
                 titlefont=dict(color=colors.red),
                 tickfont=dict(color=colors.red),
                 overlaying="y",
-                position=1,  # move axis outward
+                position=1,
             ),
             # TODO: instead of having an extra y-axis, we could plot X and P on the same
             # axis but with a factor for P to make it better visible (and add the factor
@@ -481,7 +481,7 @@ class SelectedProcessPlot(Plot):
                 tickfont=dict(color=colors.blue),
                 overlaying="y",
                 side="right",
-                position=1,  # move axis outward
+                position=1,
             ),
             showlegend=False,
             updatemenus=[
