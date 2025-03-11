@@ -277,10 +277,11 @@ def results(input, output, session, exp_or_const):
 
         ui.tags.p(
             f"""
-            Concentration profiles were calculated for {df_comb.index.size} combinations
-            of different values for {mu_or_F} and the
-            {params.results["V_frac"].description.lower()}.
-            """
+            Concentration profiles were calculated for different values of {mu_or_F}
+            and the {params.results["V_frac"].description.lower()}.
+            """,
+            ui.tags.br(),
+            "Click into one of the plots to select a process."
         )
 
         # three columns:
