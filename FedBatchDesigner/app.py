@@ -713,12 +713,6 @@ def populate_defaults_button():
                 """
             ),
         ),
-        ui.tags.ul(
-            *[
-                ui.tags.li(ui.HTML(f"<b>{v['title']}</b>:<br>{v['description']}"))
-                for v in params.defaults.values()
-            ]
-        ),
         ui.div(
             ui.input_action_button(
                 "apply_default",
@@ -726,6 +720,12 @@ def populate_defaults_button():
                 disabled=True,
             ),
             style="display: flex; justify-content: center; align-items: center;",
+        ),
+        ui.tags.ul(
+            *[
+                ui.tags.li(ui.HTML(f"<b>{v['title']}</b>:<br>{v['description']}"))
+                for v in params.defaults.values()
+            ]
         ),
         title="Select Default Parameter Set",
         easy_close=True,
