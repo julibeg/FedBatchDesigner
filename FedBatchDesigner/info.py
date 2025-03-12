@@ -37,8 +37,8 @@ def info():
         with ui.tags.ul():
             ui.tags.li(
                 """
-                The feed rate ((\(F\), for constant feed) or specific growth rate
-                ((\(\mu\), for exponential feed) during the first stage.
+                The feed rate (\(F\), for constant feed) or specific growth rate
+                (\(\mu\), for exponential feed) during the first stage.
                 """
             )
             ui.tags.li(
