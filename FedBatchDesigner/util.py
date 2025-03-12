@@ -31,8 +31,8 @@ def is_iterable(x):
 
 def get_increasingly_smaller_steps(smaller_than=10):
     """
-    Yield increasingly smaller numbers following the pattern 10, 5, 2, 0.1, 0.05, 0.02,
-    0.01, 0.005, 0.002, 0.001... that are smaller than `smaller_than`.
+    Yield increasingly smaller numbers following the pattern 10, 5, 2, 1, 0.5, 0.2, 0.1,
+    0.05, 0.02, 0.01, 0.005, 0.002, 0.001... that are smaller than `smaller_than`.
     """
     factor = 1
     while True:
