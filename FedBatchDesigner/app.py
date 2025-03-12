@@ -281,7 +281,7 @@ def results(input, output, session, exp_or_const):
             and the {params.results["V_frac"].description.lower()}.
             """,
             ui.tags.br(),
-            "Click into one of the plots to select a process."
+            "Click into one of the plots to select a process.",
         )
 
         # three columns:
@@ -533,104 +533,114 @@ with ui.navset_bar(id="navbar", title=None):
     with ui.nav_panel("Input parameters"):
         # top section with intro in left and buttons in right column
         with ui.layout_columns(col_widths=(6, 6)):
-            with ui.div(style="margin-bottom: 20px;"):  # add some space below
-                ui.p(
-                    """
-                    Please provide some basic information about your process setup
-                    below. Parameters in the left column are shared by both stages.
-                    Parameters in the right column are specific to each stage. Any
-                    parameter not provided for the second stage specifically will be
-                    assumed to be the same as in the first stage.
-                    """
-                )
-                ui.p(
-                    f"""
-                    Some of these parameters are determined by your experimental setup
-                    (e.g. {params.feed["V_max"].label}). Others can be found in the
-                    literature (e.g. {params.stage_specific["rho"].label} for your
-                    production organism) and some need to be estimated from experimental
-                    data (usually the specific productivities
-                    {params.stage_specific["pi_0"].label} and
-                    {params.stage_specific["pi_1"].label}). Tutorials on how to do this
-                    can be found
-                    """,
-                    " ",
-                    ui.tags.a(
-                        "on github",
-                        href=(
-                            "https://github.com/julibeg/"
-                            "FedBatchDesigner/tree/main/case-studies"
+            with ui.div():
+                with ui.card():
+                    ui.card_header("Introduction")
+                    ui.p(
+                        """
+                        Please provide some basic information about your process setup
+                        below. Parameters in the left column are shared by both stages.
+                        Parameters in the right column are specific to each stage. Any
+                        parameter not provided for the second stage specifically will be
+                        assumed to be the same as in the first stage.
+                        """
+                    )
+                    ui.p(
+                        f"""
+                        Some of these parameters are determined by your experimental setup
+                        (e.g. {params.feed["V_max"].label}). Others can be found in the
+                        literature (e.g. {params.stage_specific["rho"].label} for your
+                        production organism) and some need to be estimated from experimental
+                        data (usually the specific productivities
+                        {params.stage_specific["pi_0"].label} and
+                        {params.stage_specific["pi_1"].label}). Tutorials on how to do this
+                        can be found
+                        """,
+                        " ",
+                        ui.tags.a(
+                            "on github",
+                            href=(
+                                "https://github.com/julibeg/"
+                                "FedBatchDesigner/tree/main/case-studies"
+                            ),
+                            target="_blank",
                         ),
-                        target="_blank",
-                    ),
-                    ".",
-                )
-                # Buttons container
-            with ui.div(
-                style=(
-                    "display: flex;"
-                    "justify-content: space-evenly;"
-                    "align-items: center;"
-                    "height: 100%;"
-                    "width: 100%;"
-                )
-            ):
-                ui.input_action_button("submit", "Submit", class_="btn btn-primary")
-                ui.input_action_button(
-                    "populate_defaults",
-                    "Populate empty fields with defaults",
-                    class_="btn btn-secondary",
-                )
-                ui.input_action_button("clear", "Clear", class_="btn btn-info")
+                        ".",
+                    )
+                    ui.p(
+                        "Please see also the ",
+                        ui.input_action_link("info_link", "Info panel"),
+                        " for more details.",
+                    )
 
-        # Parameters section
-        with ui.layout_columns(col_widths=(6, 6)):
-            # Left column
-            with ui.div():
-                ui.h4("Batch parameters")
-                ui.p(
-                    "The batch phase is assumed to have already "
-                    "been passed and won't be optimized."
-                )
-                with ui.layout_column_wrap(width=1 / 2):
-                    for k, v in params.batch.items():
-                        with ui.div():
-                            ui.input_text(id=k, label=str(v))
-                            ui.p(v.description)
-                ui.h4("Feed parameters")
-                ui.p(
-                    f"""
-                    {params.feed['V_max'].label} -
-                    {params.batch['V_batch'].label} is the volume of medium
-                    added during the feed phase. Specific growth rates up to
-                    {params.feed['mu_max'].label} are considered when optimizing
-                    the the exponential feed and feed rates up to
-                    {params.feed['F_max'].label} are considered when optimizing
-                    the constant feed.
-                    """
-                )
-                with ui.layout_column_wrap(width=1 / 2):
-                    for k, v in params.feed.items():
-                        with ui.div():
-                            ui.input_text(id=k, label=str(v))
-                            ui.p(v.description)
+                # batch + feed parameters
+                with ui.card():
+                    ui.card_header("Batch parameters")
+                    ui.p(
+                        "The batch phase is assumed to have already "
+                        "been passed and won't be optimized."
+                    )
+                    with ui.layout_column_wrap(width=1 / 2):
+                        for k, v in params.batch.items():
+                            with ui.div():
+                                ui.input_text(id=k, label=str(v))
+                                ui.p(v.description)
 
-            # Right column
+                with ui.card():
+                    ui.card_header("Feed parameters")
+                    ui.p(
+                        f"""
+                        {params.feed['V_max'].label} -
+                        {params.batch['V_batch'].label} is the volume of medium
+                        added during the feed phase. Specific growth rates up to
+                        {params.feed['mu_max'].label} are considered when optimizing
+                        the the exponential feed and feed rates up to
+                        {params.feed['F_max'].label} are considered when optimizing
+                        the constant feed.
+                        """
+                    )
+                    with ui.layout_column_wrap(width=1 / 2):
+                        for k, v in params.feed.items():
+                            with ui.div():
+                                ui.input_text(id=k, label=str(v))
+                                ui.p(v.description)
+
             with ui.div():
-                ui.h4("Stage-specific parameters")
-                with ui.navset_bar(title=None):
-                    with ui.nav_panel("Stage 1"):
-                        with ui.layout_column_wrap(width=1 / 2):
-                            for k, v in params.stage_specific.items():
-                                with ui.div():
-                                    ui.input_text(id=f"s1_{k}", label=str(v))
-                                    ui.p(v.description)
-                    with ui.nav_panel("Stage 2 (optional)"):
-                        with ui.layout_column_wrap(width=1 / 2):
-                            for k, v in params.stage_specific.items():
-                                with ui.div():
-                                    ui.input_text(id=f"s2_{k}", label=str(v))
-                                    ui.p(v.description)
+                with ui.div(
+                    style=(
+                        "display: flex;"
+                        "justify-content: space-evenly;"
+                        "align-items: center;"
+                        "width: 100%;"
+                        "margin-top: 2em;"
+                        "margin-bottom: 2em;"
+                    )
+                ):
+                    ui.input_action_button("submit", "Submit", class_="btn btn-primary")
+                    ui.input_action_button(
+                        "populate_defaults",
+                        "Populate empty fields with defaults",
+                        class_="btn btn-secondary",
+                    )
+                    ui.input_action_button("clear", "Clear", class_="btn btn-info")
+
+
+                # stage-specific parameters
+                with ui.card():
+                    ui.card_header("Stage-specific parameters")
+                    with ui.navset_bar(title=None):
+                        with ui.nav_panel("Stage 1"):
+                            with ui.layout_column_wrap(width=1 / 2):
+                                for k, v in params.stage_specific.items():
+                                    with ui.div():
+                                        ui.input_text(id=f"s1_{k}", label=str(v))
+                                        ui.p(v.description)
+                        with ui.nav_panel("Stage 2 (optional)"):
+                            with ui.layout_column_wrap(width=1 / 2):
+                                for k, v in params.stage_specific.items():
+                                    with ui.div():
+                                        ui.input_text(id=f"s2_{k}", label=str(v))
+                                        ui.p(v.description)
 
     for exp_or_const in ["constant", "exponential"]:
         with ui.nav_panel(f"Results {exp_or_const} feed"):
@@ -652,6 +662,12 @@ with ui.navset_bar(id="navbar", title=None):
 
     with ui.nav_panel("Info"):
         info.info()
+
+
+@reactive.Effect
+@reactive.event(input.info_link)
+def jump_to_info_panel():
+    ui.update_navs(id="navbar", selected="Info")
 
 
 @reactive.Effect
@@ -860,6 +876,7 @@ def validate_mu_max(value):
         return
     if float(value) <= mu_min:
         return "'mu_max' must be larger than 'mu_min'"
+
 
 def validate_mu_min(value):
     # `mu_min` isn't required -> return if hasn't been provided
