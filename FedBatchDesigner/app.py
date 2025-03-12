@@ -281,7 +281,7 @@ def results(input, output, session, exp_or_const):
             and the {params.results["V_frac"].description.lower()}.
             """,
             ui.tags.br(),
-            "Click into one of the plots to select a process.",
+            "You can click into one of the plots to select a process.",
         )
 
         # three columns:
