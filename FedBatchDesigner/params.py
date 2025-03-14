@@ -44,15 +44,6 @@ feed = {
         "g glc / L",
         "Substrate concentration in the feed",
     ),
-    "mu_min": InputParam(
-        "\(\mu_\\textrm{min}\)",
-        "/h",
-        """
-        Minimum specific growth rate to consider during optimization (optional; uses 5%
-        of \(\mu_\\textrm{max}\) if not provided)
-        """,
-        required=False,
-    ),
     "mu_max": InputParam(
         "\(\mu_\\textrm{max}\)",
         "/h",
@@ -63,11 +54,20 @@ feed = {
         "L/h",
         "Maximum constant feed rate",
     ),
+    "mu_min": InputParam(
+        "\(\mu_\\textrm{min}\)",
+        "/h",
+        """
+        Minimum specific growth rate to consider during optimization (optional; uses 5%
+        of \(\mu_\\textrm{max}\) if not provided)
+        """,
+        required=False,
+    ),
 }
 
 common = {**batch, **feed}
 
-stage_specific = {
+yields = {
     "Y_XS": InputParam(
         "\(Y_{X/S}\)",
         "g CDM / g glc",
@@ -82,10 +82,13 @@ stage_specific = {
         "Product yield coefficient (grams product formed per gram of glucose consumed)",
     ),
     "Y_AS": InputParam(
-        "\(Y_{A/S}\)",
+        "\(Y_{ATP/S}\)",
         "g ATP / g glc",
         "ATP yield coefficient (grams ATP generated per gram of glucose consumed)",
     ),
+}
+
+rates = {
     "rho": InputParam(
         "\(\\rho\)",
         "g ATP / (g CDM h)",
@@ -94,17 +97,16 @@ stage_specific = {
     "pi_0": InputParam(
         "\(\pi_0\)",
         "g product / (g CDM h)",
-        (
-            "Non-growth-associated specific product formation rate "
-            "(dP / dt = X (pi_0 + pi_1 mu))"
-        ),
+        "Non-growth-associated specific product formation rate",
     ),
     "pi_1": InputParam(
         "\(\pi_1\)",
         "g product / g CDM",
-        "Growth-associated product formation coefficient",
+        "Growth-associated specific product formation rate",
     ),
 }
+
+stage_specific = {**yields, **rates}
 
 results = {
     "mu": ResultParam(

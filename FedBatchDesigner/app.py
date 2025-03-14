@@ -21,6 +21,10 @@ from process_stages import (
     NoGrowthConstantStage as NoGrowthS2,
 )
 
+NAVBAR_OPTIONS = ui.navbar_options(
+    bg="#eeeeee",
+)
+
 # some global variables
 APP_NAME = "FedBatchDesigner"
 N_MINIMUM_LEVELS_FOR_MU_OR_F = 15
@@ -58,6 +62,14 @@ ui.head_content(
     ui.tags.script(
         "window.PlotlyConfig = {MathJaxConfig: 'local'};",
         type="text/javascript",
+    ),
+    # smaller font size for the navbar titles
+    ui.tags.style(
+        """
+        .navbar-brand {
+            font-size: 115%;
+        }
+        """
     ),
 )
 
@@ -189,7 +201,9 @@ def submit_button():
 
         # define the constant and exponential first stage and make sure the params are
         # feasible
-        X_batch = parsed_params["common"]["x_batch"] * parsed_params["common"]["V_batch"]
+        X_batch = (
+            parsed_params["common"]["x_batch"] * parsed_params["common"]["V_batch"]
+        )
         const_s1 = ConstS1(
             V0=parsed_params["common"]["V_batch"],
             X0=X_batch,
@@ -539,117 +553,164 @@ def results(input, output, session, exp_or_const):
                                     )
 
 
-with ui.navset_bar(id="navbar", title=None):
+with ui.navset_bar(id="navbar", title=None, navbar_options=NAVBAR_OPTIONS):
     with ui.nav_panel("Input parameters"):
         # top section with intro in left and buttons in right column
         with ui.layout_columns(col_widths=(6, 6)):
             with ui.div():
                 with ui.card():
-                    ui.card_header("Introduction")
-                    ui.p(
-                        """
-                        Please provide some basic information about your process setup
-                        below. Parameters in the left column are shared by both stages.
-                        Parameters in the right column are specific to each stage. Any
-                        parameter not provided for the second stage specifically will be
-                        assumed to be the same as in the first stage.
-                        """
-                    )
-                    ui.p(
-                        f"""
-                        Some of these parameters are determined by your experimental setup
-                        (e.g. {params.feed["V_max"].label}). Others can be found in the
-                        literature (e.g. {params.stage_specific["rho"].label} for your
-                        production organism) and some need to be estimated from experimental
-                        data (usually the specific productivities
-                        {params.stage_specific["pi_0"].label} and
-                        {params.stage_specific["pi_1"].label}). Tutorials on how to do this
-                        can be found
-                        """,
-                        " ",
-                        ui.tags.a(
-                            "on github",
-                            href=(
-                                "https://github.com/julibeg/"
-                                "FedBatchDesigner/tree/main/case-studies"
-                            ),
-                            target="_blank",
-                        ),
-                        ".",
-                    )
-                    ui.p(
-                        "Please see also the ",
-                        ui.input_action_link("info_link", "Info panel"),
-                        " for more details.",
-                    )
+                    # instead of using `ui.card_header()` we're using this hack of a
+                    # navset_bar with only a single panel (without title) because this
+                    # looks nicer and is more consistent with the navset_bar and the two
+                    # panels for stage 1 and stage 2 below
+                    with ui.navset_bar(
+                        title="Introduction", navbar_options=NAVBAR_OPTIONS
+                    ):
+                        with ui.nav_panel(None):
+                            ui.p(
+                                """
+                                Please provide some basic information about your process
+                                setup below. Parameters in the left column are shared by
+                                both stages. Parameters in the right column are specific
+                                to each stage. Any parameter not provided for the second
+                                stage specifically will be assumed to be the same as in
+                                the first stage.
+                                """
+                            )
+                            ui.p(
+                                f"""
+                                Some of these parameters are determined by your
+                                experimental setup (e.g. {params.feed["V_max"].label}).
+                                Others can be found in the literature (e.g.
+                                {params.rates["rho"].label} for your production
+                                organism) and some need to be estimated from
+                                experimental data (usually the specific productivities
+                                {params.rates["pi_0"].label} and
+                                {params.rates["pi_1"].label}). Tutorials on how to do
+                                this can be found
+                                """,
+                                " ",
+                                ui.tags.a(
+                                    "on github",
+                                    href=(
+                                        "https://github.com/julibeg/"
+                                        "FedBatchDesigner/tree/main/case-studies"
+                                    ),
+                                    target="_blank",
+                                ),
+                                ".",
+                            )
+                            ui.p(
+                                "Please see also the ",
+                                ui.input_action_link("info_link", "Info panel"),
+                                " for more details regarding the "
+                                "underlying assumptions etc.",
+                            )
 
-                # batch + feed parameters
-                with ui.card():
-                    ui.card_header("Batch parameters")
-                    ui.p(
-                        "The batch phase is assumed to have already "
-                        "been passed and won't be optimized."
-                    )
-                    with ui.layout_column_wrap(width=1 / 2):
-                        for k, v in params.batch.items():
-                            with ui.div():
-                                ui.input_text(id=k, label=str(v))
-                                ui.p(v.description)
+                            with ui.div(
+                                style=(
+                                    "display: flex;"
+                                    "justify-content: space-evenly;"
+                                    "align-items: center;"
+                                    "width: 100%;"
+                                    "margin-top: 1em;"
+                                    "margin-bottom: 1em;"
+                                )
+                            ):
+                                ui.input_action_button(
+                                    "submit", "Submit", class_="btn btn-primary"
+                                )
+                                ui.input_action_button(
+                                    "populate_defaults",
+                                    "Populate empty fields with defaults",
+                                    class_="btn btn-secondary",
+                                )
+                                ui.input_action_button(
+                                    "clear", "Clear", class_="btn btn-info"
+                                )
 
                 with ui.card():
-                    ui.card_header("Feed parameters")
-                    ui.p(
-                        f"""
-                        {params.feed['V_max'].label} -
-                        {params.batch['V_batch'].label} is the volume of medium
-                        added during the feed phase. Specific growth rates up to
-                        {params.feed['mu_max'].label} are considered when optimizing
-                        the the exponential feed and feed rates up to
-                        {params.feed['F_max'].label} are considered when optimizing
-                        the constant feed.
-                        """
-                    )
-                    with ui.layout_column_wrap(width=1 / 2):
-                        for k, v in params.feed.items():
-                            with ui.div():
-                                ui.input_text(id=k, label=str(v))
-                                ui.p(v.description)
+                    with ui.navset_bar(
+                        title="Feed parameters", navbar_options=NAVBAR_OPTIONS
+                    ):
+                        with ui.nav_panel(None):
+                            ui.p(
+                                f"""
+                                {params.feed['V_max'].label} -
+                                {params.batch['V_batch'].label} is the volume of medium
+                                added during the feed phase. Specific growth rates up to
+                                {params.feed['mu_max'].label} are considered when
+                                optimizing the the exponential feed and feed rates up to
+                                {params.feed['F_max'].label} are considered when
+                                optimizing the constant feed.
+                                """
+                            )
+                            with ui.layout_column_wrap(width=1 / 2):
+                                for k, v in params.feed.items():
+                                    with ui.div():
+                                        ui.input_text(id=k, label=str(v))
+                                        ui.p(v.description)
 
             with ui.div():
-                with ui.div(
-                    style=(
-                        "display: flex;"
-                        "justify-content: space-evenly;"
-                        "align-items: center;"
-                        "width: 100%;"
-                        "margin-top: 2em;"
-                        "margin-bottom: 2em;"
-                    )
-                ):
-                    ui.input_action_button("submit", "Submit", class_="btn btn-primary")
-                    ui.input_action_button(
-                        "populate_defaults",
-                        "Populate empty fields with defaults",
-                        class_="btn btn-secondary",
-                    )
-                    ui.input_action_button("clear", "Clear", class_="btn btn-info")
+                with ui.card():
+                    with ui.navset_bar(
+                        title="Batch parameters", navbar_options=NAVBAR_OPTIONS
+                    ):
+                        with ui.nav_panel(None):
+                            ui.p(
+                                "The batch phase is assumed to have already "
+                                "been passed and won't be optimized."
+                            )
+                            with ui.layout_column_wrap(width=1 / 2):
+                                for k, v in params.batch.items():
+                                    with ui.div():
+                                        ui.input_text(id=k, label=str(v))
+                                        ui.p(v.description)
 
                 # stage-specific parameters
                 with ui.card():
-                    ui.card_header("Stage-specific parameters")
-                    with ui.navset_bar(title=None):
-                        with ui.nav_panel("Stage 1"):
-                            with ui.layout_column_wrap(width=1 / 2):
-                                for k, v in params.stage_specific.items():
-                                    with ui.div():
-                                        ui.input_text(id=f"s1_{k}", label=str(v))
-                                        ui.p(v.description)
-                        with ui.nav_panel("Stage 2 (optional)"):
-                            with ui.layout_column_wrap(width=1 / 2):
-                                for k, v in params.stage_specific.items():
-                                    with ui.div():
-                                        ui.input_text(id=f"s2_{k}", label=str(v))
-                                        ui.p(v.description)
+                    with ui.navset_bar(
+                        title="Stage-specific parameters", navbar_options=NAVBAR_OPTIONS
+                    ):
+                        for stage_idx in [1, 2]:
+                            with ui.nav_panel(f"Stage {stage_idx}"):
+                                ui.tags.p(
+                                    """
+                                    These parameters (yield coefficients and specific
+                                    ATP consumption and product formation rates) can
+                                    change between the two stages and make up the
+                                    specific substrate consumption rate according to
+                                    """
+                                )
+                                ui.tags.p(
+                                    r""" \(
+                                    \sigma = \frac{\mu}{Y_{X/S}} + \frac{\pi_0 + \mu
+                                    \pi_1}{Y_{P/S}} + \frac{\rho}{Y_{ATP/S}}
+                                    \) """,
+                                    style="text-align: center; font-size: 130%;",
+                                )
+                                with ui.card():
+                                    ui.card_header("Yield coefficients")
+                                    with ui.layout_column_wrap(width=1 / 3):
+                                        for k, v in params.yields.items():
+                                            ui.input_text(
+                                                id=f"s{stage_idx}_{k}", label=str(v)
+                                            )
+                                    ui.tags.p(
+                                        """
+                                        Yield coefficients of biomass, product, and ATP
+                                        (in grams per gram substrate consumed).
+                                        """
+                                    )
+                                with ui.card():
+                                    ui.card_header("Specific rates")
+                                    with ui.layout_column_wrap(width=1 / 3):
+                                        for k, v in params.rates.items():
+                                            with ui.div():
+                                                ui.input_text(
+                                                    id=f"s{stage_idx}_{k}", label=str(v)
+                                                )
+                                                ui.tags.p(v.description)
 
     for exp_or_const in ["constant", "exponential"]:
         with ui.nav_panel(f"Results {exp_or_const} feed"):
