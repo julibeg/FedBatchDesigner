@@ -11,6 +11,7 @@ from shinywidgets import render_plotly
 import colors
 import icons
 import info
+from logger import logger
 import params
 import plots
 import util
@@ -246,7 +247,10 @@ def submit_button():
         time.sleep(2)
         ui.modal_remove()
 
-    except Exception:
+    except Exception as e:
+
+        logger.exception(e)
+
         ui.notification_show(
             """
             An error occurred. Please check the input parameters and make sure that all

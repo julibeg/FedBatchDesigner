@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import scipy
 
+from logger import logger
 import util
 
 # maximum step size (in hours of time domain) for the integration
@@ -278,9 +279,7 @@ class FedBatchStageIntegrate(FedBatchStage):
             )
         except NotEnoughGlucoseError as e:
             if self.debug:
-                # TODO: we should implement proper logging and log this instead of
-                # printing it
-                print(e)
+                logger.exception(e)
                 return debug_df
             else:
                 raise e
