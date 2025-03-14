@@ -57,9 +57,7 @@ def test_defaults():
         "V0": defaults["V_batch"],
         "X0": defaults["x_batch"] * defaults["V_batch"],
         "P0": 0,
-        "stage_params": {
-            k.split("s1_")[-1]: v for k, v in defaults.items() if k.startswith("s1_")
-        },
+        **{k.split("s1_")[-1]: v for k, v in defaults.items() if k.startswith("s1_")},
     }
 
     # test constant feed

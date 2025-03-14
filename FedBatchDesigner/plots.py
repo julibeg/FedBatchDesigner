@@ -340,9 +340,9 @@ class SelectedProcessPlot(Plot):
             V0=self.params["base"]["V_batch"],
             X0=self.params["base"]["V_batch"] * self.params["base"]["x_batch"],
             P0=0,
-            stage_params=self.params["s1"],
+            **self.params["s1"],
         )
-        stage_2 = self.stage_2_class(*row[["V1", "X1", "P1"]], self.params["s2"])
+        stage_2 = self.stage_2_class(*row[["V1", "X1", "P1"]], **self.params["s2"])
 
         df_s1 = stage_1.evaluate_at_t(t1, **{self.mu_or_F: mu_or_F})
         df_s2 = stage_2.evaluate_at_t(t2)

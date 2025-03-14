@@ -118,7 +118,7 @@ def run_grid_search(stage_1, input_params):
         df_s1 = stage_1.evaluate_at_V(Vs=V_intervals, **{mu_or_F: m_or_F})
         df_s1["V_frac"] = V_frac
         for t_switch, row_s1 in df_s1.iterrows():
-            stage_2 = NoGrowthS2(*row_s1[["V", "X", "P"]], input_params["s2"])
+            stage_2 = NoGrowthS2(*row_s1[["V", "X", "P"]], **input_params["s2"])
             row_s2 = stage_2.evaluate_at_V(input_params["base"]["V_max"]).squeeze()
             # get constant feed rate in stage 2 and the end time
             F2 = stage_2.F
@@ -139,7 +139,7 @@ def run_grid_search(stage_1, input_params):
     # calculate total amount of substrate added and per-substrate yield
     V_add_s1 = df_comb["V1"] - input_params["base"]["V_batch"]
     V_add_s2 = df_comb["V2"] - df_comb["V1"]
-    S_add_s1 = V_add_s1 * stage_1.stage_params["s_f"]
+    S_add_s1 = V_add_s1 * stage_1.s_f
     S_add_s2 = V_add_s2 * input_params["s2"]["s_f"]
     df_comb.insert(1, "S1", S_add_s1)
     df_comb.insert(6, "S2", S_add_s1 + S_add_s2)
@@ -190,13 +190,13 @@ def submit_button():
             V0=parsed_params["base"]["V_batch"],
             X0=X_batch,
             P0=0,
-            stage_params=parsed_params["s1"],
+            **parsed_params["s1"],
         )
         exp_s1 = ExpS1(
             V0=parsed_params["base"]["V_batch"],
             X0=X_batch,
             P0=0,
-            stage_params=parsed_params["s1"],
+            **parsed_params["s1"],
         )
         # (for now we only check if `mu_max` or `F_max` are larger than the minimum feed
         # rate required to add enough medium in the first instant of the feed phase, but we
@@ -627,7 +627,6 @@ with ui.navset_bar(id="navbar", title=None):
                         class_="btn btn-secondary",
                     )
                     ui.input_action_button("clear", "Clear", class_="btn btn-info")
-
 
                 # stage-specific parameters
                 with ui.card():

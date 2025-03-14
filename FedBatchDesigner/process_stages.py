@@ -16,19 +16,20 @@ class NotEnoughGlucoseError(Exception):
 
 
 class FedBatchStage(abc.ABC):
-    def __init__(self, V0, X0, P0, stage_params, debug=False):
+    def __init__(self, V0, X0, P0, s_f, Y_AS, Y_PS, Y_XS, rho, pi_0, pi_1, debug=False):
         self.V0 = V0
         self.X0 = X0
         self.P0 = P0
-        # copy `stage_params` so that we don't modify the original dict when we modify
-        # `self.stage_params`
-        self.stage_params = stage_params.copy()
+        self.s_f = s_f
+        self.rho = rho
+        self.Y_AS = Y_AS
+        self.Y_PS = Y_PS
+        self.Y_XS = Y_XS
+        self.pi_0 = pi_0
+        self.pi_1 = pi_1
         self.debug = debug
         # calculate glucose required for maintenance and product formation at t=0
-        self.initial_glc_for_rho_and_pi_0 = X0 * (
-            stage_params["rho"] / stage_params["Y_AS"]
-            + stage_params["pi_0"] / stage_params["Y_PS"]
-        )
+        self.initial_glc_for_rho_and_pi_0 = X0 * (rho / Y_AS + pi_0 / Y_PS)
 
     @abc.abstractmethod
     def evaluate_at_V(self, Vs, **kwargs):
@@ -50,18 +51,18 @@ class ConstantFeed:
         With any feed rate smaller than this, not enough glucose for maintenance and
         product formation would be added in the first instance of the batch.
         """
-        return self.initial_glc_for_rho_and_pi_0 / self.stage_params["s_f"]
+        return self.initial_glc_for_rho_and_pi_0 / self.s_f
 
     def calculate_initial_mu(self, F):
         """Calculate the growth rate at the first instance of constant feed."""
         # put parameters into variables for convenience
-        Y_XS = self.stage_params["Y_XS"]
-        Y_AS = self.stage_params["Y_AS"]
-        Y_PS = self.stage_params["Y_PS"]
-        s_f = self.stage_params["s_f"]
-        rho = self.stage_params["rho"]
-        pi_0 = self.stage_params["pi_0"]
-        pi_1 = self.stage_params["pi_1"]
+        Y_XS = self.Y_XS
+        Y_AS = self.Y_AS
+        Y_PS = self.Y_PS
+        s_f = self.s_f
+        rho = self.rho
+        pi_0 = self.pi_0
+        pi_1 = self.pi_1
         X = self.X0
 
         mu = (
@@ -83,12 +84,11 @@ class ExponentialFeed:
     def substrate_start_volume(self, mu):
         return (
             self.X0
-            / (self.stage_params["s_f"] * mu)
+            / (self.s_f * mu)
             * (
-                mu / self.stage_params["Y_XS"]
-                + self.stage_params["rho"] / self.stage_params["Y_AS"]
-                + (self.stage_params["pi_0"] + mu * self.stage_params["pi_1"])
-                / self.stage_params["Y_PS"]
+                mu / self.Y_XS
+                + self.rho / self.Y_AS
+                + (self.pi_0 + mu * self.pi_1) / self.Y_PS
             )
         )
 
@@ -113,8 +113,8 @@ class NoGrowthConstantStage(FedBatchStage, ConstantFeed):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.F = self.initial_glc_for_rho_and_pi_0 / self.stage_params["s_f"]
-        self.dP = self.X0 * self.stage_params["pi_0"]
+        self.F = self.initial_glc_for_rho_and_pi_0 / self.s_f
+        self.dP = self.X0 * self.pi_0
 
     def evaluate_at_t(self, t):
         if not util.is_iterable(t):
@@ -174,12 +174,12 @@ class FedBatchStageIntegrate(FedBatchStage):
 
             # get dV and the amount of glucose thus added
             dV = self.dV(t=t, **dV_kwargs)
-            glc_add = dV * self.stage_params["s_f"]
+            glc_add = dV * self.s_f
 
             # get glucose needed for maintenance and for non-growth-dependent production
-            glc_mnt = X * self.stage_params["rho"] / self.stage_params["Y_AS"]
-            dP_pi_0 = X * self.stage_params["pi_0"]
-            glc_P_pi_0 = dP_pi_0 / self.stage_params["Y_PS"]
+            glc_mnt = X * self.rho / self.Y_AS
+            dP_pi_0 = X * self.pi_0
+            glc_P_pi_0 = dP_pi_0 / self.Y_PS
 
             # maintenance could require more glucose than was added; make sure to not
             # have negative glucose in that case
@@ -201,7 +201,7 @@ class FedBatchStageIntegrate(FedBatchStage):
                 if allow_not_enough_for_pi:
                     # use all the remaining glucose for product formation (this will be
                     # less than `X * pi_0`)
-                    dP_pi_0 = glc * self.stage_params["Y_PS"]
+                    dP_pi_0 = glc * self.Y_PS
                     glc = 0
                 else:
                     raise NotEnoughGlucoseError(
@@ -212,11 +212,8 @@ class FedBatchStageIntegrate(FedBatchStage):
             else:
                 glc -= glc_P_pi_0
             # use the remaining glucose for growth and growth-coupled production
-            dX = glc / (
-                1 / self.stage_params["Y_XS"]
-                + self.stage_params["pi_1"] / self.stage_params["Y_PS"]
-            )
-            dP_pi_1 = dX * self.stage_params["pi_1"]
+            dX = glc / (1 / self.Y_XS + self.pi_1 / self.Y_PS)
+            dP_pi_1 = dX * self.pi_1
             dP = dP_pi_0 + dP_pi_1
             return dV, dX, dP
 
@@ -304,7 +301,7 @@ class ConstantStageIntegrate(FedBatchStageIntegrate, ConstantFeed):
 class LinearStageIntegrate(FedBatchStageIntegrate, LinearFeed):
 
     def dV(self, k, t):
-        dV_min = self.initial_glc_for_rho_and_pi_0 / self.stage_params["s_f"]
+        dV_min = self.initial_glc_for_rho_and_pi_0 / self.s_f
         return k * t + dV_min
 
 
@@ -329,12 +326,12 @@ class FedBatchStageAnalytical(FedBatchStage):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         pi_0, pi_1, rho, Y_XS, Y_PS, Y_AS = (
-            self.stage_params["pi_0"],
-            self.stage_params["pi_1"],
-            self.stage_params["rho"],
-            self.stage_params["Y_XS"],
-            self.stage_params["Y_PS"],
-            self.stage_params["Y_AS"],
+            self.pi_0,
+            self.pi_1,
+            self.rho,
+            self.Y_XS,
+            self.Y_PS,
+            self.Y_AS,
         )
         self.alpha = 1 / (1 + pi_1 * Y_XS / Y_PS)
         self.beta = pi_0 * Y_XS / Y_PS + rho * Y_XS / Y_AS
@@ -360,10 +357,10 @@ class ConstantStageAnalytical(FedBatchStageAnalytical, ConstantFeed):
         V = self.V0 + F * t
 
         # define a few commonly used expressions for sake of conciseness below
-        s_f = self.stage_params["s_f"]
-        Y_XS = self.stage_params["Y_XS"]
-        pi_0 = self.stage_params["pi_0"]
-        pi_1 = self.stage_params["pi_1"]
+        s_f = self.s_f
+        Y_XS = self.Y_XS
+        pi_0 = self.pi_0
+        pi_1 = self.pi_1
 
         expr_1 = F * s_f * Y_XS / self.beta
         expr_2 = np.exp(-self.alpha * self.beta * t)
@@ -394,12 +391,7 @@ class ExponentialStageAnalytical(FedBatchStageAnalytical, ExponentialFeed):
         Evaluate a couple expressions that come up multiple times in the equations for
         the exponential and logistic case.
         """
-        expr_1 = (
-            self.phi_0(mu)
-            * self.stage_params["s_f"]
-            * self.stage_params["Y_XS"]
-            * self.alpha
-        )
+        expr_1 = self.phi_0(mu) * self.s_f * self.Y_XS * self.alpha
         expr_2 = self.alpha * self.beta + mu
         return expr_1, expr_2
 
@@ -428,25 +420,17 @@ class ExponentialStageAnalytical(FedBatchStageAnalytical, ExponentialFeed):
             * (
                 mu
                 * (-expr_1 + self.X0 * expr_2)
-                * (
-                    -self.stage_params["pi_0"]
-                    + self.alpha * self.beta * self.stage_params["pi_1"]
-                )
+                * (-self.pi_0 + self.alpha * self.beta * self.pi_1)
                 + np.exp(t * expr_2)
                 * expr_1
                 * self.alpha
                 * self.beta
-                * (self.stage_params["pi_0"] + mu * self.stage_params["pi_1"])
+                * (self.pi_0 + mu * self.pi_1)
                 - np.exp(t * self.alpha * self.beta)
                 * expr_2
                 * (
-                    expr_1 * self.stage_params["pi_0"]
-                    + self.X0
-                    * mu
-                    * (
-                        -self.stage_params["pi_0"]
-                        + self.alpha * self.beta * self.stage_params["pi_1"]
-                    )
+                    expr_1 * self.pi_0
+                    + self.X0 * mu * (-self.pi_0 + self.alpha * self.beta * self.pi_1)
                 )
             )
             / (self.alpha * self.beta * mu * expr_2)
@@ -532,10 +516,11 @@ class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
         phi_0 = self.phi_0(mu)
         alpha = self.alpha
         beta = self.beta
-        s_f = self.stage_params["s_f"]
-        Y_XS = self.stage_params["Y_XS"]
-        pi_0 = self.stage_params["pi_0"]
-        pi_1 = self.stage_params["pi_1"]
+        s_f = self.s_f
+        Y_XS = self.Y_XS
+        pi_0 = self.pi_0
+        pi_1 = self.pi_1
+
         # define some common terms
         delta_F = phi_0 - phi_inf
         exp_alpha_beta_neg_t = np.exp(-alpha * beta * t)
@@ -543,7 +528,7 @@ class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
         exp_muf_t = np.exp(mu * t)
         exp_combined = np.exp(t * (alpha * beta + mu))
 
-        # Hypergeometric terms
+        # hypergeometric terms
         hyp_term_1 = scipy.special.hyp2f1(
             1,
             alpha * beta / mu + 1,
@@ -554,14 +539,14 @@ class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
             1, alpha * beta / mu + 1, alpha * beta / mu + 2, phi_0 / delta_F
         )
 
-        # Logarithmic terms
+        # logarithmic terms
         log_term_1 = np.log(phi_0 * (exp_muf_t - 1) + phi_inf)
         log_term_2 = np.log(phi_inf)
 
         # define a commonly used expressions for sake of conciseness below
         expr_1, expr_2 = self.common_expressions(mu)
 
-        # Numerator: First major term
+        # numerator: first major term
         numerator_part1 = (
             -expr_1
             * mu
@@ -572,20 +557,17 @@ class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
             + phi_inf * mu * expr_1 * (alpha * beta * pi_1 - pi_0) * hyp_term_2
         )
 
-        # Numerator: Second major term
+        # numerator: second major term
         numerator_part2 = -(delta_F * (expr_2)) * (
             -alpha * phi_inf * pi_0 * s_f * Y_XS * exp_alpha_beta_t * log_term_1
             + alpha * phi_inf * pi_0 * s_f * Y_XS * log_term_2 * exp_alpha_beta_t
             - mu * self.X0 * (exp_alpha_beta_t - 1) * (pi_0 - alpha * beta * pi_1)
         )
 
-        # Numerator: Combine both parts
         numerator = exp_alpha_beta_neg_t * (numerator_part1 + numerator_part2)
 
-        # Denominator
         denominator = alpha * beta * mu * delta_F * (expr_2)
 
-        # Final result
         result = numerator / denominator
         return result
 
