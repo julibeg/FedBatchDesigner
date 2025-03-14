@@ -1,3 +1,4 @@
+import contextlib
 import functools
 import time
 
@@ -21,11 +22,8 @@ from process_stages import (
     NoGrowthConstantStage as NoGrowthS2,
 )
 
-NAVBAR_OPTIONS = ui.navbar_options(
-    bg="#eeeeee",
-)
-
 # some global variables
+NAVBAR_OPTIONS = ui.navbar_options(bg="#efefef")
 APP_NAME = "FedBatchDesigner"
 N_MINIMUM_LEVELS_FOR_MU_OR_F = 15
 V_FRAC_STEP = 0.02
@@ -72,6 +70,23 @@ ui.head_content(
         """
     ),
 )
+
+
+@contextlib.contextmanager
+def card_with_nav_header(title):
+    """
+    Create a card with a navset_bar (with a single title-less panel) as header.
+
+    Instead of using `ui.card_header()` we're using this hack because it looks nicer and
+    is more consistent with the navset_bar and the two panels for the stage-specific
+    params.
+    """
+    with ui.card():
+        with ui.navset_bar(
+            title=title, navbar_options=ui.navbar_options(bg="#efefef", underline=False)
+        ):
+            with ui.nav_panel(None):
+                yield
 
 
 def run_grid_search(stage_1, input_params):
@@ -558,114 +573,96 @@ with ui.navset_bar(id="navbar", title=None, navbar_options=NAVBAR_OPTIONS):
         # top section with intro in left and buttons in right column
         with ui.layout_columns(col_widths=(6, 6)):
             with ui.div():
-                with ui.card():
-                    # instead of using `ui.card_header()` we're using this hack of a
-                    # navset_bar with only a single panel (without title) because this
-                    # looks nicer and is more consistent with the navset_bar and the two
-                    # panels for stage 1 and stage 2 below
-                    with ui.navset_bar(
-                        title="Introduction", navbar_options=NAVBAR_OPTIONS
-                    ):
-                        with ui.nav_panel(None):
-                            ui.p(
-                                """
-                                Please provide some basic information about your process
-                                setup below. Parameters in the left column are shared by
-                                both stages. Parameters in the right column are specific
-                                to each stage. Any parameter not provided for the second
-                                stage specifically will be assumed to be the same as in
-                                the first stage.
-                                """
-                            )
-                            ui.p(
-                                f"""
-                                Some of these parameters are determined by your
-                                experimental setup (e.g. {params.feed["V_max"].label}).
-                                Others can be found in the literature (e.g.
-                                {params.rates["rho"].label} for your production
-                                organism) and some need to be estimated from
-                                experimental data (usually the specific productivities
-                                {params.rates["pi_0"].label} and
-                                {params.rates["pi_1"].label}). Tutorials on how to do
-                                this can be found
-                                """,
-                                " ",
-                                ui.tags.a(
-                                    "on github",
-                                    href=(
-                                        "https://github.com/julibeg/"
-                                        "FedBatchDesigner/tree/main/case-studies"
-                                    ),
-                                    target="_blank",
-                                ),
-                                ".",
-                            )
-                            ui.p(
-                                "Please see also the ",
-                                ui.input_action_link("info_link", "Info panel"),
-                                " for more details regarding the "
-                                "underlying assumptions etc.",
-                            )
+                with card_with_nav_header(title="Introduction"):
+                    ui.p(
+                        """
+                        Please provide some basic information about your process
+                        setup below. Parameters in the left column are shared by
+                        both stages. Parameters in the right column are specific
+                        to each stage. Any parameter not provided for the second
+                        stage specifically will be assumed to be the same as in
+                        the first stage.
+                        """
+                    )
+                    ui.p(
+                        f"""
+                        Some of these parameters are determined by your
+                        experimental setup (e.g. {params.feed["V_max"].label}).
+                        Others can be found in the literature (e.g.
+                        {params.rates["rho"].label} for your production
+                        organism) and some need to be estimated from
+                        experimental data (usually the specific productivities
+                        {params.rates["pi_0"].label} and
+                        {params.rates["pi_1"].label}). Tutorials on how to do
+                        this can be found
+                        """,
+                        " ",
+                        ui.tags.a(
+                            "on github",
+                            href=(
+                                "https://github.com/julibeg/"
+                                "FedBatchDesigner/tree/main/case-studies"
+                            ),
+                            target="_blank",
+                        ),
+                        ".",
+                    )
+                    ui.p(
+                        "Please see also the ",
+                        ui.input_action_link("info_link", "Info panel"),
+                        " for more details regarding the "
+                        "underlying assumptions etc.",
+                    )
 
-                            with ui.div(
-                                style=(
-                                    "display: flex;"
-                                    "justify-content: space-evenly;"
-                                    "align-items: center;"
-                                    "width: 100%;"
-                                    "margin-top: 1em;"
-                                    "margin-bottom: 1em;"
-                                )
-                            ):
-                                ui.input_action_button(
-                                    "submit", "Submit", class_="btn btn-primary"
-                                )
-                                ui.input_action_button(
-                                    "populate_defaults",
-                                    "Populate empty fields with defaults",
-                                    class_="btn btn-secondary",
-                                )
-                                ui.input_action_button(
-                                    "clear", "Clear", class_="btn btn-info"
-                                )
-
-                with ui.card():
-                    with ui.navset_bar(
-                        title="Feed parameters", navbar_options=NAVBAR_OPTIONS
+                    with ui.div(
+                        style=(
+                            "display: flex;"
+                            "justify-content: space-evenly;"
+                            "align-items: center;"
+                            "width: 100%;"
+                            "margin-top: 1em;"
+                            "margin-bottom: 1em;"
+                        )
                     ):
-                        with ui.nav_panel(None):
-                            ui.p(
-                                f"""
-                                {params.feed['V_max'].label} -
-                                {params.batch['V_batch'].label} is the volume of medium
-                                added during the feed phase. Specific growth rates up to
-                                {params.feed['mu_max'].label} are considered when
-                                optimizing the the exponential feed and feed rates up to
-                                {params.feed['F_max'].label} are considered when
-                                optimizing the constant feed.
-                                """
-                            )
-                            with ui.layout_column_wrap(width=1 / 2):
-                                for k, v in params.feed.items():
-                                    with ui.div():
-                                        ui.input_text(id=k, label=str(v))
-                                        ui.p(v.description)
+                        ui.input_action_button(
+                            "submit", "Submit", class_="btn btn-primary"
+                        )
+                        ui.input_action_button(
+                            "populate_defaults",
+                            "Populate empty fields with defaults",
+                            class_="btn btn-secondary",
+                        )
+                        ui.input_action_button("clear", "Clear", class_="btn btn-info")
+
+                with card_with_nav_header(title="Feed parameters"):
+                    ui.p(
+                        f"""
+                        {params.feed['V_max'].label} -
+                        {params.batch['V_batch'].label} is the volume of medium
+                        added during the feed phase. Specific growth rates up to
+                        {params.feed['mu_max'].label} are considered when
+                        optimizing the the exponential feed and feed rates up to
+                        {params.feed['F_max'].label} are considered when
+                        optimizing the constant feed.
+                        """
+                    )
+                    with ui.layout_column_wrap(width=1 / 2):
+                        for k, v in params.feed.items():
+                            with ui.div():
+                                ui.input_text(id=k, label=str(v))
+                                ui.p(v.description)
 
             with ui.div():
-                with ui.card():
-                    with ui.navset_bar(
-                        title="Batch parameters", navbar_options=NAVBAR_OPTIONS
-                    ):
-                        with ui.nav_panel(None):
-                            ui.p(
-                                "The batch phase is assumed to have already "
-                                "been passed and won't be optimized."
-                            )
-                            with ui.layout_column_wrap(width=1 / 2):
-                                for k, v in params.batch.items():
-                                    with ui.div():
-                                        ui.input_text(id=k, label=str(v))
-                                        ui.p(v.description)
+                with card_with_nav_header(title="Batch parameters"):
+                    ui.p(
+                        "The batch phase is assumed to have already "
+                        "been passed and won't be optimized."
+                    )
+                    with ui.layout_column_wrap(width=1 / 2):
+                        for k, v in params.batch.items():
+                            with ui.div():
+                                ui.input_text(id=k, label=str(v))
+                                ui.p(v.description)
 
                 # stage-specific parameters
                 with ui.card():
