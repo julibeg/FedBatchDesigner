@@ -39,6 +39,11 @@ feed = {
     "V_max": InputParam(
         "\(V_\\textrm{max}\)", "L", "Maximum available volume in the reactor"
     ),
+    "s_f": InputParam(
+        "\(s_f\)",
+        "g glc / L",
+        "Substrate concentration in the feed",
+    ),
     "mu_min": InputParam(
         "\(\mu_\\textrm{min}\)",
         "/h",
@@ -71,7 +76,6 @@ stage_specific = {
             "(grams biomass produced per gram of glucose consumed)"
         ),
     ),
-    "s_f": InputParam("\(s_f\)", "g glc / L", "Substrate concentration in the feed"),
     "Y_PS": InputParam(
         "\(Y_{P/S}\)",
         "g product / g glc",
@@ -277,7 +281,7 @@ defaults_case_study_valine_one_stage = defaults_E_coli | {
     "V_max": 4.17,  # L
     "mu_max": 0.3,  # /h (reasonable value for E. coli exponential feed)
     "F_max": 0.04,  # L/h (slightly higher than the 0.03 L/h used in the paper)
-    "s1_s_f": 800,  # g glc / L (from paper & confirmed in correspondence with authors)
+    "s_f": 800,  # g glc / L (from paper & confirmed in correspondence with authors)
     "s1_Y_PS": 0.65,  # g product / g glc (theoretical maximum)
     "s1_pi_0": 0.073,  # g product / (g CDM h)
     "s1_pi_1": 0.298,  # g product / g CDM

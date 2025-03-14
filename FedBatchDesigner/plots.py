@@ -337,12 +337,17 @@ class SelectedProcessPlot(Plot):
         t2 = np.linspace(0, row["t_end"] - row["t_switch"], 100)
 
         stage_1 = self.stage_1_class(
-            V0=self.params["base"]["V_batch"],
-            X0=self.params["base"]["V_batch"] * self.params["base"]["x_batch"],
+            V0=self.params["common"]["V_batch"],
+            X0=self.params["common"]["V_batch"] * self.params["common"]["x_batch"],
             P0=0,
+            s_f=self.params["common"]["s_f"],
             **self.params["s1"],
         )
-        stage_2 = self.stage_2_class(*row[["V1", "X1", "P1"]], **self.params["s2"])
+        stage_2 = self.stage_2_class(
+            *row[["V1", "X1", "P1"]],
+            s_f=self.params["common"]["s_f"],
+            **self.params["s2"],
+        )
 
         df_s1 = stage_1.evaluate_at_t(t1, **{self.mu_or_F: mu_or_F})
         df_s2 = stage_2.evaluate_at_t(t2)

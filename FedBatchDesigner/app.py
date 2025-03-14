@@ -78,11 +78,11 @@ def run_grid_search(stage_1, input_params):
 
     mu_or_F = "mu" if isinstance(stage_1, ExpS1) else "F"
 
-    if mu_or_F == "mu" and (mu_min := input_params["base"]["mu_min"]) is None:
+    if mu_or_F == "mu" and (mu_min := input_params["common"]["mu_min"]) is None:
         # handle `mu_min` separately as per default we use `mu_max / 20` if not required
         # (and in that case we'll just get a linspace from `mu_min` to `mu_max` with 20
         # values)
-        mu_max = input_params["base"]["mu_max"]
+        mu_max = input_params["common"]["mu_max"]
         mus_or_Fs = np.linspace(mu_max / 20, mu_max, 20).round(ROUND_DIGITS)
     else:
         # we either got constant feed or a user-provided `mu_min`
@@ -91,15 +91,15 @@ def run_grid_search(stage_1, input_params):
         # point issues)
         mus_or_Fs = util.get_first_nice_value_range_with_at_least_N_values(
             min_val=min_mu_or_F,
-            max_val=input_params["base"][f"{mu_or_F}_max"],
+            max_val=input_params["common"][f"{mu_or_F}_max"],
             min_n_values=N_MINIMUM_LEVELS_FOR_MU_OR_F,
         ).round(ROUND_DIGITS)
-    if mus_or_Fs[-1] < input_params["base"][f"{mu_or_F}_max"]:
-        mus_or_Fs = np.append(mus_or_Fs, input_params["base"][f"{mu_or_F}_max"])
+    if mus_or_Fs[-1] < input_params["common"][f"{mu_or_F}_max"]:
+        mus_or_Fs = np.append(mus_or_Fs, input_params["common"][f"{mu_or_F}_max"])
     V_frac = np.arange(0, 1 + V_FRAC_STEP, V_FRAC_STEP).round(ROUND_DIGITS)
     V_intervals = (
-        input_params["base"]["V_batch"]
-        + (input_params["base"]["V_max"] - input_params["base"]["V_batch"]) * V_frac
+        input_params["common"]["V_batch"]
+        + (input_params["common"]["V_max"] - input_params["common"]["V_batch"]) * V_frac
     )
 
     # initialise empty results df
@@ -118,8 +118,12 @@ def run_grid_search(stage_1, input_params):
         df_s1 = stage_1.evaluate_at_V(Vs=V_intervals, **{mu_or_F: m_or_F})
         df_s1["V_frac"] = V_frac
         for t_switch, row_s1 in df_s1.iterrows():
-            stage_2 = NoGrowthS2(*row_s1[["V", "X", "P"]], **input_params["s2"])
-            row_s2 = stage_2.evaluate_at_V(input_params["base"]["V_max"]).squeeze()
+            stage_2 = NoGrowthS2(
+                *row_s1[["V", "X", "P"]],
+                s_f=input_params["common"]["s_f"],
+                **input_params["s2"],
+            )
+            row_s2 = stage_2.evaluate_at_V(input_params["common"]["V_max"]).squeeze()
             # get constant feed rate in stage 2 and the end time
             F2 = stage_2.F
             t_end = row_s2.name + t_switch
@@ -137,10 +141,10 @@ def run_grid_search(stage_1, input_params):
     df_comb["productivity"] = df_comb["P2"] / df_comb["t_end"]
     df_comb["space_time_yield"] = df_comb["productivity"] / df_comb["V2"]
     # calculate total amount of substrate added and per-substrate yield
-    V_add_s1 = df_comb["V1"] - input_params["base"]["V_batch"]
+    V_add_s1 = df_comb["V1"] - input_params["common"]["V_batch"]
     V_add_s2 = df_comb["V2"] - df_comb["V1"]
-    S_add_s1 = V_add_s1 * stage_1.s_f
-    S_add_s2 = V_add_s2 * input_params["s2"]["s_f"]
+    S_add_s1 = V_add_s1 * input_params["common"]["s_f"]
+    S_add_s2 = V_add_s2 * input_params["common"]["s_f"]
     df_comb.insert(1, "S1", S_add_s1)
     df_comb.insert(6, "S2", S_add_s1 + S_add_s2)
     df_comb["substrate_yield"] = df_comb["P2"] / df_comb["S2"]
@@ -185,23 +189,25 @@ def submit_button():
 
         # define the constant and exponential first stage and make sure the params are
         # feasible
-        X_batch = parsed_params["base"]["x_batch"] * parsed_params["base"]["V_batch"]
+        X_batch = parsed_params["common"]["x_batch"] * parsed_params["common"]["V_batch"]
         const_s1 = ConstS1(
-            V0=parsed_params["base"]["V_batch"],
+            V0=parsed_params["common"]["V_batch"],
             X0=X_batch,
             P0=0,
+            s_f=parsed_params["common"]["s_f"],
             **parsed_params["s1"],
         )
         exp_s1 = ExpS1(
-            V0=parsed_params["base"]["V_batch"],
+            V0=parsed_params["common"]["V_batch"],
             X0=X_batch,
             P0=0,
+            s_f=parsed_params["common"]["s_f"],
             **parsed_params["s1"],
         )
         # (for now we only check if `mu_max` or `F_max` are larger than the minimum feed
         # rate required to add enough medium in the first instant of the feed phase, but we
         # could add more checks in the future)
-        if const_s1.F_min > parsed_params["base"]["F_max"]:
+        if const_s1.F_min > parsed_params["common"]["F_max"]:
             # parameters are infeasible; `F_max` needs to be increased
             ui.notification_show(
                 """
@@ -799,14 +805,14 @@ def parse_params():
         # return early if inputs not valid
         return
     parsed = {}
-    parsed["base"] = {
+    parsed["common"] = {
         k: float(input[k]()) for k, v in params.common.items() if v.required
     }
     # handle `mu_min` separately as it's not required
     if not (mu_min := input["mu_min"]()):
-        parsed["base"]["mu_min"] = None
+        parsed["common"]["mu_min"] = None
     else:
-        parsed["base"]["mu_min"] = float(mu_min)
+        parsed["common"]["mu_min"] = float(mu_min)
     parsed["s1"] = {k: float(input[f"s1_{k}"]()) for k in params.stage_specific.keys()}
     # use params from stage 1 in stage two unless specified otherwise
     parsed["s2"] = parsed["s1"].copy()
