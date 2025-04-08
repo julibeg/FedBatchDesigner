@@ -5,7 +5,7 @@ import time
 import numpy as np
 import pandas as pd
 from shiny import reactive
-from shiny.express import input, module, render, ui
+from shiny.express import input, module, render, session as root_session, ui
 from shiny_validate import InputValidator
 from shinywidgets import render_plotly
 
@@ -25,6 +25,7 @@ from process_stages import (
 # some global variables
 NAVBAR_OPTIONS = ui.navbar_options(bg="#efefef")
 APP_NAME = "FedBatchDesigner"
+MAIN_NAVBAR_ID = "main_navbar"
 N_MINIMUM_LEVELS_FOR_MU_OR_F = 15
 V_FRAC_STEP = 0.02
 ROUND_DIGITS = 5
@@ -87,6 +88,15 @@ def card_with_nav_header(title):
         ):
             with ui.nav_panel(None):
                 yield
+
+
+def go_to_navbar_panel(panel):
+    # we define this function for updating the navbar in order to capture the
+    # `root_session` because `ui.update_navs()` per default always uses the enclosing
+    # session when the function is called, which might be the session of a module and
+    # not the root session (in which case the navbar would not be updated;
+    # https://github.com/posit-dev/py-shiny/issues/1841)
+    ui.update_navs(id=MAIN_NAVBAR_ID, selected=panel, session=root_session)
 
 
 def run_grid_search(stage_1, input_params):
@@ -264,11 +274,9 @@ def submit_button():
         df_grid_F = run_grid_search(const_s1, parsed_params)
         DF_GRID_SEARCH_F.set(df_grid_F)
 
-        # calculations are done; remove the modal and jump to "Results" (we also need to
-        # remove the "no results yet" message on the Results panels)
-        ui.remove_ui(".no_results_yet", multiple=True)
+        # calculations are done; remove the modal and jump to "Results"
         ui.modal_remove()
-        ui.update_navs(id="navbar", selected="Results constant feed")
+        go_to_navbar_panel("Results exponential feed")
 
     except ZeroDivisionError:
         ui.notification_show(
@@ -309,9 +317,18 @@ def results(input, output, session, exp_or_const):
         parsed_params = PARSED_PARAMS.get()
         df_comb = (DF_GRID_SEARCH_MU if mu_or_F == "mu" else DF_GRID_SEARCH_F).get()
         selected_process = reactive.Value({})
+
         # check if the grid search has been run; if not (i.e. we don't have results
         # yet), show a message and return
         if df_comb is None:
+            with ui.card():
+                ui.h4("No results yet", style="text-align: center;")
+                with ui.div(style="justify-content: center; display: flex"):
+                    ui.input_action_button(
+                        "back_button",
+                        "Back to inputs",
+                        class_="btn btn-primary",
+                    )
             return
 
         ui.tags.p(
@@ -567,8 +584,14 @@ def results(input, output, session, exp_or_const):
                                         index_label="param", header=["value"]
                                     )
 
+    @reactive.effect
+    @reactive.event(input.back_button)
+    def back_to_inputs():
+        # go back to the input parameters panel
+        go_to_navbar_panel("Input parameters")
 
-with ui.navset_bar(id="navbar", title=None, navbar_options=NAVBAR_OPTIONS):
+
+with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS):
     with ui.nav_panel("Input parameters"):
         # top section with intro in left and buttons in right column
         with ui.layout_columns(col_widths=(6, 6)):
@@ -711,20 +734,6 @@ with ui.navset_bar(id="navbar", title=None, navbar_options=NAVBAR_OPTIONS):
 
     for exp_or_const in ["constant", "exponential"]:
         with ui.nav_panel(f"Results {exp_or_const} feed"):
-            # add message saying that there are no results yet and a button to go back
-            # to the Inputs panel (this will be removed once the grid search is run)
-            with ui.div(class_="no_results_yet"):
-                with ui.card():
-                    ui.h4("No results yet", style="text-align: center;")
-                    with ui.div(style="justify-content: center; display: flex"):
-                        ui.input_action_button(
-                            f"back_button_{exp_or_const}",
-                            "Back to inputs",
-                            class_="btn btn-primary",
-                        )
-
-            # now render the results (this returns early without rendering anything if
-            # the grid search hasn't been run yet)
             results(f"{exp_or_const}_results", exp_or_const=exp_or_const)
 
     with ui.nav_panel("Info"):
@@ -734,14 +743,7 @@ with ui.navset_bar(id="navbar", title=None, navbar_options=NAVBAR_OPTIONS):
 @reactive.Effect
 @reactive.event(input.info_link)
 def jump_to_info_panel():
-    ui.update_navs(id="navbar", selected="Info")
-
-
-@reactive.Effect
-@reactive.event(input.back_button_constant, input.back_button_exponential)
-def back_to_inputs():
-    """Jump back to the "Input parameters" panel."""
-    ui.update_navs(id="navbar", selected="Input parameters")
+    go_to_navbar_panel("Info")
 
 
 @reactive.Effect
