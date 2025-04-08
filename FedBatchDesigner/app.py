@@ -276,7 +276,7 @@ def submit_button():
 
         # calculations are done; remove the modal and jump to "Results"
         ui.modal_remove()
-        go_to_navbar_panel("Results exponential feed")
+        go_to_navbar_panel("Results constant feed")
 
     except ZeroDivisionError:
         ui.notification_show(
