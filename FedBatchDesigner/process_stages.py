@@ -77,11 +77,11 @@ class ConstantFeed:
 
 
 class LinearFeed(ConstantFeed):
-    def F0(self, k):
+    def F0(self, dF):
         """
         This is the initial feed rate that ensures biomass growth is constant.
         """
-        return self.X0 * self.beta / self.s_f / self.Y_XS + k / self.alpha / self.beta
+        return self.X0 * self.beta / self.s_f / self.Y_XS + dF / self.alpha / self.beta
 
 
 class ExponentialFeed:
@@ -302,11 +302,11 @@ class ConstantStageIntegrate(FedBatchStageIntegrate, ConstantFeed):
 
 
 class LinearStageIntegrate(FedBatchStageIntegrate, LinearFeed):
-    def dV(self, k, t, F0=None):
+    def dV(self, dF, t, F0=None):
         if F0 is None:
             # use smallest possible feed rate as initial feed rate
             F0 = self.initial_glc_for_rho_and_pi_0 / self.s_f
-        return k * t + F0
+        return dF * t + F0
 
 
 class ExponentialStageIntegrate(FedBatchStageIntegrate, ExponentialFeed):
