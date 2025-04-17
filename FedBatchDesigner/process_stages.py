@@ -572,10 +572,66 @@ class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
         df.index.name = "t"
         return df
 
-    def evaluate_at_V(self, V, mu, phi_inf):
-        if not util.is_iterable(V):
-            V = [V]
-        # for each volume, determine the amount of time needed to get there and use that
-        # to calculate X and P
-        ts = self.t_until_V(V, mu, phi_inf)
-        return self.evaluate_at_t(ts, mu, phi_inf)
+
+class LinearGrowthStageAnalytical(FedBatchStageAnalytical, LinearFeed):
+    def F0(self, k):
+        return self.X0 * self.beta / self.s_f / self.Y_XS + k / self.alpha / self.beta
+
+    def t_until_V(self, V, dF):
+        F0 = self.F0(dF)
+        # use quadratic formula to solve for t
+        return util.quadratic_formula(a=dF / 2, b=F0, c=self.V0 - V, plus_only=True)
+
+    def evaluate_at_t(self, t, dF):
+        if not util.is_iterable(t):
+            t = [t]
+        # make sure we got an array
+        t = np.asasarray(t)
+
+        # define a few commonly used expresions for sake of conciseness
+        X0 = self.X0
+        Y_AS = self.Y_AS
+        Y_PS = self.Y_PS
+        Y_XS = self.Y_XS
+        rho = self.rho
+        s_f = self.s_f
+        pi_0 = self.pi_0
+        pi_1 = self.pi_1
+
+        # G is constant; we can calculate it at t=0
+        F0 = self.F0(dF)
+        mu0 = (
+            Y_XS
+            * (F0 * Y_AS * Y_PS * s_f - X0 * Y_AS * pi_0 - X0 * Y_PS * rho)
+            / (X0 * Y_AS * (Y_PS + Y_XS * pi_1))
+        )
+        G = X0 * mu0
+
+        V = self.V0 + t * F0 + dF * t**2 / 2
+
+        X = (
+            Y_AS
+            * (
+                F0 * Y_PS * Y_XS * s_f
+                - G * Y_PS
+                - G * Y_XS * pi_1
+                + Y_PS * Y_XS * dF * s_f * t
+            )
+            / (Y_XS * (Y_AS * pi_0 + Y_PS * rho))
+        )
+
+        P = (
+            Y_PS
+            * t
+            * (
+                2 * F0 * Y_AS * Y_XS * pi_0 * s_f
+                - 2 * G * Y_AS * pi_0
+                + 2 * G * Y_XS * pi_1 * rho
+                + Y_AS * Y_XS * dF * pi_0 * s_f * t
+            )
+            / (2 * Y_XS * (Y_AS * pi_0 + Y_PS * rho))
+        )
+
+        df = pd.DataFrame({"V": V, "X": X, "P": P}, index=t)
+        df.index.name = "t"
+        return df

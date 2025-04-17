@@ -68,3 +68,27 @@ def nice_value_range(min_val, max_val, step):
     low = min_val - step
     vals = np.arange(high, low, -step)
     return vals[(vals > min_val - EPSILON) & (vals < max_val + EPSILON)][::-1]
+
+
+def quadratic_formula(a, b, c, plus_only=False):
+    if abs(a) < EPSILON:
+        # linear case: a ~ 0 -> b * t + c = 0 -> t = -c / b
+        if abs(b) < EPSILON:
+            raise ValueError(
+                "No solution or infinite solutions in quadratic formula "
+                "(`a` and `b` are both close to zero)."
+            )
+        t = -c / b
+        return t if plus_only else (t, t)
+
+    # convert into array if not already
+    disc = np.array(b**2 - 4 * a * c)
+    if (disc < 0).any():
+        raise ValueError("Complex roots in quadratic formula (discriminant < 0).")
+
+    sqrt_disc = np.sqrt(disc)
+    t1 = (-b + sqrt_disc) / (2 * a)
+    if plus_only:
+        return t1
+    t2 = (-b - sqrt_disc) / (2 * a)
+    return (t1, t2)
