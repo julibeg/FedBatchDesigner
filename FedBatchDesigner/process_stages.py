@@ -30,6 +30,9 @@ class FedBatchStage(abc.ABC):
         self.debug = debug
         # calculate glucose required for maintenance and product formation at t=0
         self.initial_glc_for_rho_and_pi_0 = X0 * (rho / Y_AS + pi_0 / Y_PS)
+        # these expressions are handy for some calculations
+        self.alpha = 1 / (1 + pi_1 * Y_XS / Y_PS)
+        self.beta = pi_0 * Y_XS / Y_PS + rho * Y_XS / Y_AS
 
     @abc.abstractmethod
     def evaluate_at_V(self, Vs, **kwargs):
@@ -74,8 +77,11 @@ class ConstantFeed:
 
 
 class LinearFeed(ConstantFeed):
-    # for now no difference to constant stage
-    pass
+    def F0(self, k):
+        """
+        This is the initial feed rate that ensures biomass growth is constant.
+        """
+        return self.X0 * self.beta / self.s_f / self.Y_XS + k / self.alpha / self.beta
 
 
 class ExponentialFeed:
@@ -296,9 +302,11 @@ class ConstantStageIntegrate(FedBatchStageIntegrate, ConstantFeed):
 
 
 class LinearStageIntegrate(FedBatchStageIntegrate, LinearFeed):
-    def dV(self, k, t):
-        dV_min = self.initial_glc_for_rho_and_pi_0 / self.s_f
-        return k * t + dV_min
+    def dV(self, k, t, F0=None):
+        if F0 is None:
+            # use smallest possible feed rate as initial feed rate
+            F0 = self.initial_glc_for_rho_and_pi_0 / self.s_f
+        return k * t + F0
 
 
 class ExponentialStageIntegrate(FedBatchStageIntegrate, ExponentialFeed):
@@ -316,19 +324,6 @@ class FedBatchStageAnalytical(FedBatchStage):
     Base class for process stages using analytical expressions for calculating
     process trajectories.
     """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        pi_0, pi_1, rho, Y_XS, Y_PS, Y_AS = (
-            self.pi_0,
-            self.pi_1,
-            self.rho,
-            self.Y_XS,
-            self.Y_PS,
-            self.Y_AS,
-        )
-        self.alpha = 1 / (1 + pi_1 * Y_XS / Y_PS)
-        self.beta = pi_0 * Y_XS / Y_PS + rho * Y_XS / Y_AS
 
     @abc.abstractmethod
     def t_until_V(self, V, *args, **kwargs):
@@ -574,9 +569,6 @@ class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
 
 
 class LinearGrowthStageAnalytical(FedBatchStageAnalytical, LinearFeed):
-    def F0(self, k):
-        return self.X0 * self.beta / self.s_f / self.Y_XS + k / self.alpha / self.beta
-
     def t_until_V(self, V, dF):
         F0 = self.F0(dF)
         # use quadratic formula to solve for t
