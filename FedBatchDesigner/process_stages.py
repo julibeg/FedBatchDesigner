@@ -335,6 +335,17 @@ class FedBatchStageAnalytical(FedBatchStage):
         """Calculate the time needed to reach V."""
         raise NotImplementedError
 
+    def evaluate_at_V(self, V, **kwargs):
+        """
+        Blanket implementation so that children only need to implement `t_until_V` and
+        evaluate_at_t.
+        """
+        if not util.is_iterable(V):
+            V = [V]
+        # for each volume, determine the amount of time needed to get there
+        ts = self.t_until_V(V, **kwargs)
+        return self.evaluate_at_t(ts, **kwargs)
+
 
 class ConstantStageAnalytical(FedBatchStageAnalytical, ConstantFeed):
     def t_until_V(self, V, F):
@@ -369,12 +380,6 @@ class ConstantStageAnalytical(FedBatchStageAnalytical, ConstantFeed):
         df = pd.DataFrame({"V": V, "X": X, "P": P}, index=t)
         df.index.name = "t"
         return df
-
-    def evaluate_at_V(self, Vs, F):
-        if not util.is_iterable(Vs):
-            Vs = [Vs]
-        ts = self.t_until_V(Vs, F)
-        return self.evaluate_at_t(ts, F)
 
 
 class ExponentialStageAnalytical(FedBatchStageAnalytical, ExponentialFeed):
@@ -430,14 +435,6 @@ class ExponentialStageAnalytical(FedBatchStageAnalytical, ExponentialFeed):
         df = pd.DataFrame({"V": V, "X": X, "P": P}, index=t)
         df.index.name = "t"
         return df
-
-    def evaluate_at_V(self, Vs, mu):
-        if not util.is_iterable(Vs):
-            Vs = [Vs]
-        # for each volume, determine the amount of time needed to get there and use that
-        # to calculate X and P
-        ts = self.t_until_V(Vs, mu)
-        return self.evaluate_at_t(ts, mu)
 
 
 class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
