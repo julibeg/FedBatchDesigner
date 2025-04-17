@@ -568,61 +568,54 @@ class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
         return df
 
 
-class LinearGrowthStageAnalytical(FedBatchStageAnalytical, LinearFeed):
+class LinearStageAnalytical(FedBatchStageAnalytical, LinearFeed):
     def t_until_V(self, V, dF):
         F0 = self.F0(dF)
         # use quadratic formula to solve for t
         return util.quadratic_formula(a=dF / 2, b=F0, c=self.V0 - V, plus_only=True)
 
-    def evaluate_at_t(self, t, dF):
+    def evaluate_at_t(self, t, dF, F0=None):
+        if F0 is None:
+            # fall back to feed rate that ensures constant biomass growth
+            F0 = self.F0(dF)
+
         if not util.is_iterable(t):
             t = [t]
         # make sure we got an array
-        t = np.asasarray(t)
+        t = np.asarray(t)
 
-        # define a few commonly used expresions for sake of conciseness
         X0 = self.X0
-        Y_AS = self.Y_AS
-        Y_PS = self.Y_PS
-        Y_XS = self.Y_XS
+        sf = self.s_f
+        Yxs = self.Y_XS
+        Yas = self.Y_AS
+        Yps = self.Y_PS
         rho = self.rho
-        s_f = self.s_f
-        pi_0 = self.pi_0
-        pi_1 = self.pi_1
+        pi0 = self.pi_0
+        pi1 = self.pi_1
 
-        # G is constant; we can calculate it at t=0
-        F0 = self.F0(dF)
-        mu0 = (
-            Y_XS
-            * (F0 * Y_AS * Y_PS * s_f - X0 * Y_AS * pi_0 - X0 * Y_PS * rho)
-            / (X0 * Y_AS * (Y_PS + Y_XS * pi_1))
-        )
-        G = X0 * mu0
-
+        # calculate V
         V = self.V0 + t * F0 + dF * t**2 / 2
 
-        X = (
-            Y_AS
-            * (
-                F0 * Y_PS * Y_XS * s_f
-                - G * Y_PS
-                - G * Y_XS * pi_1
-                + Y_PS * Y_XS * dF * s_f * t
-            )
-            / (Y_XS * (Y_AS * pi_0 + Y_PS * rho))
+        # get a few common expressions
+        term1 = (1 / Yxs) + pi1 / Yps
+        term2 = (rho / Yas + pi0 / Yps) / term1
+        exp_bt = np.exp(term2 * t)
+        exp_neg_bt = np.exp(-term2 * t)
+        term3 = (F0 / term2) * (exp_bt - 1)
+        term4 = dF * ((exp_bt * (t * term2 - 1) + 1) / (term2**2))
+        integral_term = (sf / term1) * (term3 + term4)
+
+        # calculate X
+        X = exp_neg_bt * (X0 + integral_term)
+
+        term5 = (sf / (term1 * term2)) * (F0 - dF / term2)
+        term6 = (sf * dF) / (term1 * term2)
+
+        X_int = (
+            term5 * t + 0.5 * term6 * t**2 + ((X0 - term5) / term2) * (1 - exp_neg_bt)
         )
 
-        P = (
-            Y_PS
-            * t
-            * (
-                2 * F0 * Y_AS * Y_XS * pi_0 * s_f
-                - 2 * G * Y_AS * pi_0
-                + 2 * G * Y_XS * pi_1 * rho
-                + Y_AS * Y_XS * dF * pi_0 * s_f * t
-            )
-            / (2 * Y_XS * (Y_AS * pi_0 + Y_PS * rho))
-        )
+        P = pi0 * X_int + pi1 * (X - X0)
 
         df = pd.DataFrame({"V": V, "X": X, "P": P}, index=t)
         df.index.name = "t"
