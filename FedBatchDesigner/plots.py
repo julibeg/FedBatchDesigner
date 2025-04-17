@@ -21,7 +21,6 @@ def _get_max_prod_params(df):
 
 
 class Plot(ABC):
-
     linked_plots = None
     _fig = None
 

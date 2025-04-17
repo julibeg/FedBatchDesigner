@@ -42,7 +42,6 @@ class FedBatchStage(abc.ABC):
 
 # define mixin classes to add some functionality to exponential vs constant feed stages
 class ConstantFeed:
-
     @property
     def F_min(self):
         """
@@ -80,7 +79,6 @@ class LinearFeed(ConstantFeed):
 
 
 class ExponentialFeed:
-
     def substrate_start_volume(self, mu):
         return (
             self.X0
@@ -293,26 +291,22 @@ class FedBatchStageIntegrate(FedBatchStage):
 
 
 class ConstantStageIntegrate(FedBatchStageIntegrate, ConstantFeed):
-
     def dV(self, F, t):
         return F
 
 
 class LinearStageIntegrate(FedBatchStageIntegrate, LinearFeed):
-
     def dV(self, k, t):
         dV_min = self.initial_glc_for_rho_and_pi_0 / self.s_f
         return k * t + dV_min
 
 
 class ExponentialStageIntegrate(FedBatchStageIntegrate, ExponentialFeed):
-
     def dV(self, mu, t):
         return self.substrate_start_volume(mu) * mu * np.exp(mu * t)
 
 
 class LogisticStageIntegrate(FedBatchStageIntegrate, LogisticFeed):
-
     def dV(self, phi_inf, mu, t):
         return phi_inf / (1 + np.exp(-mu * t) * (phi_inf / self.phi_0(mu) - 1))
 
@@ -343,7 +337,6 @@ class FedBatchStageAnalytical(FedBatchStage):
 
 
 class ConstantStageAnalytical(FedBatchStageAnalytical, ConstantFeed):
-
     def t_until_V(self, V, F):
         return (V - self.V0) / F
 
@@ -385,7 +378,6 @@ class ConstantStageAnalytical(FedBatchStageAnalytical, ConstantFeed):
 
 
 class ExponentialStageAnalytical(FedBatchStageAnalytical, ExponentialFeed):
-
     def common_expressions(self, mu):
         """
         Evaluate a couple expressions that come up multiple times in the equations for
@@ -449,7 +441,6 @@ class ExponentialStageAnalytical(FedBatchStageAnalytical, ExponentialFeed):
 
 
 class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
-
     def t_until_V(self, V, mu, phi_inf):
         phi_0 = self.phi_0(mu)
         t = (

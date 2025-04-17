@@ -291,7 +291,6 @@ def submit_button():
         ui.modal_remove()
 
     except Exception as e:
-
         logger.exception(e)
 
         ui.notification_show(
@@ -308,7 +307,6 @@ def submit_button():
 
 @module
 def results(input, output, session, exp_or_const):
-
     mu_or_F = {"exponential": "mu", "constant": "F"}[exp_or_const]
 
     @render.express
@@ -359,7 +357,6 @@ def results(input, output, session, exp_or_const):
                     # `V_frac` and `mu` on the axes) into the left column
                     @render_plotly
                     def productivity_contour_plot():
-
                         return plots.ContourPlot(
                             linked_plots=linked_plots,
                             selected_process=selected_process,
@@ -374,7 +371,6 @@ def results(input, output, session, exp_or_const):
 
                     @render_plotly
                     def yield_contour_plot():
-
                         return plots.ContourPlot(
                             linked_plots=linked_plots,
                             selected_process=selected_process,
@@ -393,7 +389,6 @@ def results(input, output, session, exp_or_const):
 
                     @render_plotly
                     def prod_vs_yield_plot():
-
                         return plots.LinePlot(
                             linked_plots=linked_plots,
                             selected_process=selected_process,
@@ -405,7 +400,6 @@ def results(input, output, session, exp_or_const):
 
                     @render_plotly
                     def selected_process_plot():
-
                         return plots.SelectedProcessPlot(
                             linked_plots=linked_plots,
                             selected_process=selected_process,
@@ -545,7 +539,7 @@ def results(input, output, session, exp_or_const):
                             with ui.p():
                                 for p in params_for_tables:
                                     with ui.tooltip():
-                                        ui.tags.b(f"{params.results[p].label}:"),
+                                        ui.tags.b(f"{params.results[p].label}:")
                                         params.results[p].description
                                     ui.tags.span(
                                         (
@@ -633,8 +627,7 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                     ui.p(
                         "Please see also the ",
                         ui.input_action_link("info_link", "Info panel"),
-                        " for more details regarding the "
-                        "underlying assumptions etc.",
+                        " for more details regarding the underlying assumptions etc.",
                     )
 
                     with ui.div(
@@ -660,12 +653,12 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                 with card_with_nav_header(title="Feed parameters"):
                     ui.p(
                         f"""
-                        {params.feed['V_max'].label} -
-                        {params.batch['V_batch'].label} is the volume of medium
+                        {params.feed["V_max"].label} -
+                        {params.batch["V_batch"].label} is the volume of medium
                         added during the feed phase. Specific growth rates up to
-                        {params.feed['mu_max'].label} are considered when
+                        {params.feed["mu_max"].label} are considered when
                         optimizing the the exponential feed and feed rates up to
-                        {params.feed['F_max'].label} are considered when
+                        {params.feed["F_max"].label} are considered when
                         optimizing the constant feed.
                         """
                     )
