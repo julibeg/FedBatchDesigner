@@ -118,7 +118,7 @@ class NoGrowthConstantStage(FedBatchStage, ConstantFeed):
         if not util.is_iterable(t):
             t = [t]
         # make sure we got an array
-        t = np.array(t)
+        t = np.asarray(t)
         V = self.V0 + self.F * t
         P = self.P0 + self.dP * t
 
@@ -344,7 +344,7 @@ class ConstantStageAnalytical(FedBatchStageAnalytical, ConstantFeed):
         if not util.is_iterable(t):
             t = [t]
         # make sure we got an array
-        t = np.array(t)
+        t = np.asarray(t)
 
         # calculate volume
         V = self.V0 + F * t
@@ -396,7 +396,7 @@ class ExponentialStageAnalytical(FedBatchStageAnalytical, ExponentialFeed):
         if not util.is_iterable(t):
             t = [t]
         # make sure we got an array
-        t = np.array(t)
+        t = np.asarray(t)
 
         phi_0 = self.phi_0(mu)
         V = self.V0 + (np.exp(mu * t) - 1) * phi_0 / mu
@@ -566,7 +566,7 @@ class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
         if not util.is_iterable(t):
             t = [t]
         # make sure we got an array
-        t = np.array(t)
+        t = np.asarray(t)
 
         V = self.get_V(phi_inf, mu, t)
         X = self.get_X(phi_inf, mu, t)
