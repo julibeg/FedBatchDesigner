@@ -305,7 +305,7 @@ class LinearStageIntegrate(FedBatchStageIntegrate, LinearFeed):
     def dV(self, dF, t, F0=None):
         if F0 is None:
             # use smallest possible feed rate as initial feed rate
-            F0 = self.initial_glc_for_rho_and_pi_0 / self.s_f
+            F0 = self.F0(dF)
         return dF * t + F0
 
 

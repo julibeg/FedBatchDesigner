@@ -57,6 +57,7 @@ def test_defaults():
         "V0": defaults["V_batch"],
         "X0": defaults["x_batch"] * defaults["V_batch"],
         "P0": 0,
+        "s_f": defaults["s_f"],
         **{k.split("s1_")[-1]: v for k, v in defaults.items() if k.startswith("s1_")},
     }
 
@@ -82,4 +83,12 @@ def test_defaults():
         process_stages.LogisticStageAnalytical,
         init_kwargs,
         {"mu": 0.2, "phi_inf": 0.2},
+    )
+
+    # test linear feed
+    compare_results(
+        process_stages.LinearStageIntegrate,
+        process_stages.LinearStageAnalytical,
+        init_kwargs,
+        {"dF": 0.05, "F0": 0.1},
     )
