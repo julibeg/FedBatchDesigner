@@ -18,8 +18,14 @@ class InputParam(_Param):
     required: bool = True
 
 
+@dataclass
 class ResultParam(_Param):
-    pass
+    short_label: str | None = None
+
+    def short_str(self):
+        if self.short_label is None:
+            return self.__str__()
+        return f"{self.short_label} [{self.unit}]"
 
 
 batch = {
@@ -126,6 +132,23 @@ results = {
         "Feed rate first stage",
         "L/h",
         "Constant feed rate during the growth stage",
+        short_label="F",
+    ),
+    "G": ResultParam(
+        "Absolute growth rate in first stage",
+        "g/h",
+        "constant absolute growth rate during the growth stage",
+        short_label="G",
+    ),
+    "F0": ResultParam(
+        "Initial feed rate",
+        "L/h",
+        "Feed rate at t=0 of the exponential or linear feed phase",
+    ),
+    "dF": ResultParam(
+        "Feed rate change",
+        "(L/h)/h",
+        "Change of feed rate per hour (for linear feed)",
     ),
     "V_frac": ResultParam(
         "Fraction of feed volume in first stage",
@@ -174,14 +197,6 @@ results = {
         Amount of "virtual" start feed volume needed to set up the exponential feed so
         that biomass indeed grows with the desired exponential rate (despite some
         substrate being spent on maintenance and product formation)
-        """,
-    ),
-    "F0": ResultParam(
-        "Initial feed rate",
-        "L/h",
-        """
-        Feed rate at t=0 of the exponential feed phase (equals the substrate start
-        volume divided by the specific growth rate)
         """,
     ),
     "P": ResultParam(

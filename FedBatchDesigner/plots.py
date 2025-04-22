@@ -16,17 +16,17 @@ HIGHLIGHT_LINE_KWARGS = dict(
 
 
 def _get_max_prod_params(df):
-    mu_or_F, V_frac = df.loc[df["space_time_yield"].idxmax()].name
-    return mu_or_F, V_frac
+    growth_param, V_frac = df.loc[df["space_time_yield"].idxmax()].name
+    return growth_param, V_frac
 
 
 class Plot(ABC):
     linked_plots = None
     _fig = None
 
-    def __init__(self, df, mu_or_F, linked_plots=None, selected_process=None):
+    def __init__(self, df, growth_param, linked_plots=None, selected_process=None):
         self.df = df
-        self.mu_or_F = mu_or_F
+        self.growth_param = growth_param
         if linked_plots is not None:
             self.linked_plots = linked_plots
             self.linked_plots.append(self)
@@ -37,7 +37,7 @@ class Plot(ABC):
         """Update all plots by calling their `.update()` method."""
         # check kwargs are valid
         if unexpected_kwargs := (
-            set(kwargs.keys()) - {self.mu_or_F, "V_frac", "space_time_yield", "p2"}
+            set(kwargs.keys()) - {self.growth_param, "V_frac", "space_time_yield", "p2"}
         ):
             raise ValueError(f"Invalid kwargs: {unexpected_kwargs}")
         self.selected_process.set(kwargs)
@@ -154,7 +154,7 @@ class ContourPlot(PlotWithMarkers):
         super().__init__(**kwargs)
 
     def _create_fig(self):
-        mu_or_F_opt, V_frac_opt = _get_max_prod_params(self.df)
+        growth_param_opt, V_frac_opt = _get_max_prod_params(self.df)
 
         pivoted = self.df.reset_index().pivot(
             index=self.y_col, columns=self.x_col, values=[self.z_col, self.text_col]
@@ -203,7 +203,7 @@ class ContourPlot(PlotWithMarkers):
 
         # add a point and horizontal + vertical lines to mark the "optimal" as well as
         # the "selected" process (i.e. with a specific `mu` and `V_frac`)
-        self.add_marker_for_optimal_process(V_frac_opt, mu_or_F_opt)
+        self.add_marker_for_optimal_process(V_frac_opt, growth_param_opt)
 
         # define a callback when clicked on the plot to select a point with `mu` and
         # `V_frac`
@@ -235,10 +235,10 @@ class LinePlot(PlotWithMarkers):
     """
 
     def _create_fig(self):
-        mu_or_F_opt, V_frac_opt = _get_max_prod_params(self.df)
+        growth_param_opt, V_frac_opt = _get_max_prod_params(self.df)
 
         # colour scale to colour the lines based on the value of `mu`
-        mus_or_Fs = self.df.reset_index()[self.mu_or_F].unique()
+        mus_or_Fs = self.df.reset_index()[self.growth_param].unique()
         mus_or_Fs_scaled = (mus_or_Fs - mus_or_Fs.min()) / (
             mus_or_Fs.max() - mus_or_Fs.min()
         )
@@ -252,16 +252,16 @@ class LinePlot(PlotWithMarkers):
             self.df.reset_index(),
             x=self.x_col,
             y=self.y_col,
-            color=self.mu_or_F,
+            color=self.growth_param,
             color_discrete_sequence=myscale,
-            custom_data=[self.mu_or_F, "V_frac"],
+            custom_data=[self.growth_param, "V_frac"],
             template="simple_white",
         )
 
         # create hovertemplate string
         hovertemplate = []
         for col, fmt in zip(
-            [self.x_col, self.y_col, self.mu_or_F, "V_frac"],
+            [self.x_col, self.y_col, self.growth_param, "V_frac"],
             ["x:.4g", "y:.4g", "customdata[0]", "customdata[1]"],
         ):
             symbol = results[col].label
@@ -276,7 +276,7 @@ class LinePlot(PlotWithMarkers):
 
         # get values of optimal point (which is always the first point we highlight) and
         # add the marker + hline / vline
-        x_opt, y_opt = self.df.loc[(mu_or_F_opt, V_frac_opt), [self.x_col, self.y_col]]
+        x_opt, y_opt = self.df.loc[(growth_param_opt, V_frac_opt), [self.x_col, self.y_col]]
 
         # add a point and horizontal + vertical lines to mark the "optimal" as well as
         # the "selected" process (i.e. with a specific `mu` or `F` and `V_frac`)
@@ -289,7 +289,7 @@ class LinePlot(PlotWithMarkers):
             ),
             xaxis_title=str(results[self.x_col]),
             yaxis_title=str(results[self.y_col]),
-            legend_title=str(results[self.mu_or_F]),
+            legend_title=results[self.growth_param].short_str(),
         )
 
         # create click callback to select a different point / `mu` + `V_frac`
@@ -304,11 +304,11 @@ class LinePlot(PlotWithMarkers):
             (idx,) = points.point_inds
             (clicked_x,) = points.xs
             (clicked_y,) = points.ys
-            mu_or_F, V_frac = trace.customdata[idx]
+            growth_param, V_frac = trace.customdata[idx]
 
             self._update_plots(
                 **{
-                    self.mu_or_F: mu_or_F,
+                    self.growth_param: growth_param,
                     "V_frac": V_frac,
                     self.x_col: clicked_x,
                     self.y_col: clicked_y,
@@ -329,9 +329,9 @@ class SelectedProcessPlot(Plot):
         self.stage_2_class = stage_2_class
         super().__init__(**kwargs)
 
-    def get_process_trajectory(self, mu_or_F, V_frac):
+    def get_process_trajectory(self, growth_param, V_frac):
         # get V, X, P vs t for the selected `mu` and `V_frac`
-        row = self.df.loc[(mu_or_F, V_frac)]
+        row = self.df.loc[(growth_param, V_frac)]
         t1 = np.linspace(0, row["t_switch"], 100)
         t2 = np.linspace(0, row["t_end"] - row["t_switch"], 100)
 
@@ -348,7 +348,7 @@ class SelectedProcessPlot(Plot):
             **self.params["s2"],
         )
 
-        df_s1 = stage_1.evaluate_at_t(t1, **{self.mu_or_F: mu_or_F})
+        df_s1 = stage_1.evaluate_at_t(t1, **{self.growth_param: growth_param})
         df_s2 = stage_2.evaluate_at_t(t2)
         df_s2.index += row["t_switch"]
         # combine the two stages and columns for the biomass and product concentrations
@@ -359,9 +359,9 @@ class SelectedProcessPlot(Plot):
 
     def _create_fig(self):
         # get process trajectory for the optimal `mu` (or `F`) and `V_frac`
-        mu_or_F_opt, V_frac_opt = _get_max_prod_params(self.df)
-        row_opt = self.df.loc[(mu_or_F_opt, V_frac_opt)]
-        df = self.get_process_trajectory(mu_or_F_opt, V_frac_opt)
+        growth_param_opt, V_frac_opt = _get_max_prod_params(self.df)
+        row_opt = self.df.loc[(growth_param_opt, V_frac_opt)]
+        df = self.get_process_trajectory(growth_param_opt, V_frac_opt)
 
         # TODO: can't we initialise like this for all plots?
         fig = go.FigureWidget()
@@ -527,13 +527,13 @@ class SelectedProcessPlot(Plot):
         self._fig = fig
 
     def update(self, **kwargs):
-        mu_or_F = kwargs[self.mu_or_F]
+        growth_param_val = kwargs[self.growth_param]
         V_frac = kwargs["V_frac"]
         # get the trajectory of the new process
-        df = self.get_process_trajectory(mu_or_F, V_frac)
+        df = self.get_process_trajectory(growth_param_val, V_frac)
         # update the traces
         for i, col in enumerate(["V", "X", "P", "x", "p"]):
             self.fig.update_traces(selector=i, x=df.index, y=df[col])
         # update the vertical line at `t_switch`
-        t_switch = self.df.loc[(mu_or_F, V_frac)]["t_switch"]
+        t_switch = self.df.loc[(growth_param_val, V_frac)]["t_switch"]
         self.fig.update_shapes(selector=0, x0=t_switch, x1=t_switch)

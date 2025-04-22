@@ -35,7 +35,7 @@ class FedBatchStage(abc.ABC):
         self.beta = pi_0 * Y_XS / Y_PS + rho * Y_XS / Y_AS
 
     @abc.abstractmethod
-    def evaluate_at_V(self, Vs, **kwargs):
+    def evaluate_at_V(self, V, **kwargs):
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -45,6 +45,9 @@ class FedBatchStage(abc.ABC):
 
 # define mixin classes to add some functionality to exponential vs constant feed stages
 class ConstantFeed:
+    def dV(self, F, t):
+        return F
+
     @property
     def F_min(self):
         """
@@ -77,14 +80,42 @@ class ConstantFeed:
 
 
 class LinearFeed(ConstantFeed):
-    def F0(self, dF):
+    def dV(self, dF, F0, t):
+        return dF * t + F0
+
+    def F0_for_constant_growth(self, dF):
         """
         This is the initial feed rate that ensures biomass growth is constant.
         """
         return self.X0 * self.beta / self.s_f / self.Y_XS + dF / self.alpha / self.beta
 
+    def F0_and_dF_for_constant_growth(self, G):
+        """
+        Calculate `F0` and `dF` that ensure constant growth `G = X * mu` throughout the
+        feed.
+        """
+        # `G` is constant throughout the feed, i.e. we can use it to get `mu` at `t=0`
+        # and then calculate `F0` that way
+        mu_0 = G / self.X0
+        F0 = (
+            self.X0
+            / self.s_f
+            * (
+                mu_0 / self.Y_XS
+                + self.rho / self.Y_AS
+                + (self.pi_0 + mu_0 * self.pi_1) / self.Y_PS
+            )
+        )
+        dF = (
+            (F0 - self.X0 * self.beta / (self.s_f * self.Y_XS)) * self.alpha * self.beta
+        )
+        return F0, dF
+
 
 class ExponentialFeed:
+    def dV(self, mu, t):
+        return self.substrate_start_volume(mu) * mu * np.exp(mu * t)
+
     def substrate_start_volume(self, mu):
         return (
             self.X0
@@ -103,8 +134,8 @@ class ExponentialFeed:
 
 
 class LogisticFeed(ExponentialFeed):
-    # for now no difference to exponential stage
-    pass
+    def dV(self, phi_inf, mu, t):
+        return phi_inf / (1 + np.exp(-mu * t) * (phi_inf / self.phi_0(mu) - 1))
 
 
 class NoGrowthConstantStage(FedBatchStage, ConstantFeed):
@@ -136,7 +167,7 @@ class NoGrowthConstantStage(FedBatchStage, ConstantFeed):
         return df
 
     def evaluate_at_V(self, V):
-        # make sure `Vs` is an iterable
+        # make sure `V` is an iterable
         if not util.is_iterable(V):
             V = [V]
         V = np.array(V)
@@ -251,12 +282,12 @@ class FedBatchStageIntegrate(FedBatchStage):
         df[["dV", "dX", "dP"]] = np.array(rates)
         return df
 
-    def evaluate_at_V(self, Vs, **dV_kwargs):
+    def evaluate_at_V(self, V, **dV_kwargs):
         # `dV_kwargs` is passed to `dV`, which needs to be implemented by children. The
         # rest of the functionality doesn't need to change depending on the process
-        # stage type. make sure `Vs` is an iterable
-        if not util.is_iterable(Vs):
-            Vs = [Vs]
+        # stage type. make sure `V` is an iterable
+        if not util.is_iterable(V):
+            V = [V]
 
         if self.debug:
             debug_df = pd.DataFrame(columns=["V", "X", "P"])
@@ -264,7 +295,7 @@ class FedBatchStageIntegrate(FedBatchStage):
             debug_df = None
 
         # get list of event functions (one for each V_interval)
-        events = [lambda _t, state, v=v: state[0] - v for v in Vs]
+        events = [lambda _t, state, v=v: state[0] - v for v in V]
         # make the last even terminal
         events[-1].terminal = True
 
@@ -297,26 +328,23 @@ class FedBatchStageIntegrate(FedBatchStage):
 
 
 class ConstantStageIntegrate(FedBatchStageIntegrate, ConstantFeed):
-    def dV(self, F, t):
-        return F
+    def dV(self, *args, **kwargs):
+        return ConstantFeed.dV(self, *args, **kwargs)
 
 
 class LinearStageIntegrate(FedBatchStageIntegrate, LinearFeed):
-    def dV(self, dF, t, F0=None):
-        if F0 is None:
-            # use smallest possible feed rate as initial feed rate
-            F0 = self.F0(dF)
-        return dF * t + F0
+    def dV(self, *args, **kwargs):
+        return LinearFeed.dV(self, *args, **kwargs)
 
 
 class ExponentialStageIntegrate(FedBatchStageIntegrate, ExponentialFeed):
-    def dV(self, mu, t):
-        return self.substrate_start_volume(mu) * mu * np.exp(mu * t)
+    def dV(self, *args, **kwargs):
+        return ExponentialFeed.dV(self, *args, **kwargs)
 
 
 class LogisticStageIntegrate(FedBatchStageIntegrate, LogisticFeed):
-    def dV(self, phi_inf, mu, t):
-        return phi_inf / (1 + np.exp(-mu * t) * (phi_inf / self.phi_0(mu) - 1))
+    def dV(self, *args, **kwargs):
+        return LogisticFeed.dV(self, *args, **kwargs)
 
 
 class FedBatchStageAnalytical(FedBatchStage):
@@ -338,12 +366,14 @@ class FedBatchStageAnalytical(FedBatchStage):
         if not util.is_iterable(V):
             V = [V]
         # for each volume, determine the amount of time needed to get there
-        ts = self.t_until_V(V, **kwargs)
-        return self.evaluate_at_t(ts, **kwargs)
+        t = np.array([self.t_until_V(v, **kwargs) for v in V])
+        return self.evaluate_at_t(t, **kwargs)
 
 
 class ConstantStageAnalytical(FedBatchStageAnalytical, ConstantFeed):
     def t_until_V(self, V, F):
+        if V < self.V0:
+            raise ValueError(f"`V` needs to be larger than `V0` (V0={self.V0}).")
         return (V - self.V0) / F
 
     def evaluate_at_t(self, t, F):
@@ -388,6 +418,8 @@ class ExponentialStageAnalytical(FedBatchStageAnalytical, ExponentialFeed):
         return expr_1, expr_2
 
     def t_until_V(self, V, mu):
+        if V < self.V0:
+            raise ValueError(f"`V` needs to be larger than `V0` (V0={self.V0}).")
         phi_0 = self.phi_0(mu)
         V_rest = V - self.V0
         return np.log(V_rest * mu / phi_0 + 1) / mu
@@ -434,6 +466,8 @@ class ExponentialStageAnalytical(FedBatchStageAnalytical, ExponentialFeed):
 
 class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
     def t_until_V(self, V, mu, phi_inf):
+        if V < self.V0:
+            raise ValueError(f"`V` needs to be larger than `V0` (V0={self.V0}).")
         phi_0 = self.phi_0(mu)
         t = (
             np.log(
@@ -569,16 +603,13 @@ class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
 
 
 class LinearStageAnalytical(FedBatchStageAnalytical, LinearFeed):
-    def t_until_V(self, V, dF):
-        F0 = self.F0(dF)
+    def t_until_V(self, V, dF, F0):
+        if V < self.V0:
+            raise ValueError(f"`V` needs to be larger than `V0` (V0={self.V0}).")
         # use quadratic formula to solve for t
         return util.quadratic_formula(a=dF / 2, b=F0, c=self.V0 - V, plus_only=True)
 
-    def evaluate_at_t(self, t, dF, F0=None):
-        if F0 is None:
-            # fall back to feed rate that ensures constant biomass growth
-            F0 = self.F0(dF)
-
+    def evaluate_at_t(self, t, dF, F0):
         if not util.is_iterable(t):
             t = [t]
         # make sure we got an array
@@ -620,3 +651,86 @@ class LinearStageAnalytical(FedBatchStageAnalytical, LinearFeed):
         df = pd.DataFrame({"V": V, "X": X, "P": P}, index=t)
         df.index.name = "t"
         return df
+
+
+class LinearStageConstantGrowthAnalytical(LinearStageAnalytical):
+    """
+    Linear feed with specific `F0` and `dF` that is chosen such that the absolute growth
+    rate is constant (e.g. 2 g/h).
+    """
+
+    def dV(self, t, G):
+        F0, dF = self.F0_and_dF_for_constant_growth(G)
+        return super().dV(t=t, dF=dF, F0=F0)
+
+    def evaluate_at_t(self, t, G):
+        F0, dF = self.F0_and_dF_for_constant_growth(G)
+        return super().evaluate_at_t(t, dF=dF, F0=F0)
+
+    def t_until_V(self, V, G):
+        F0, dF = self.F0_and_dF_for_constant_growth(G)
+        return super().t_until_V(V, dF=dF, F0=F0)
+
+    def get_G_max_from_F_max(self, V_end, F_max):
+        """
+        Calculate the maximum constant growth rate that doesn't exceed `F_max` at the
+        end of the feed (at `V=V_end`).
+        """
+        # extract attributes for conciceness in the long formula below
+        Y_AS = self.Y_AS
+        Y_PS = self.Y_PS
+        Y_XS = self.Y_XS
+        rho = self.rho
+        pi_0 = self.pi_0
+        pi_1 = self.pi_1
+        alpha = self.alpha
+        beta = self.beta
+        s_f = self.s_f
+        V0 = self.V0
+        X0 = self.X0
+
+        # define a few commonly used expressions
+        term_1 = Y_XS * alpha**2 * beta**2 * s_f
+        term_2 = X0 * alpha * beta**2
+        term_3 = Y_PS**2 + 2 * Y_PS * Y_XS * pi_1 + Y_XS**2 * pi_1**2
+        term_4 = Y_AS * Y_PS * alpha * beta * s_f
+
+        return (
+            Y_AS
+            * Y_PS
+            * np.sqrt(Y_XS)
+            * np.sqrt(s_f)
+            * (Y_PS + Y_XS * pi_1) ** 2
+            * np.sqrt(
+                F_max**2 * Y_XS * s_f
+                + V0**2 * term_1
+                - 2 * V0 * V_end * term_1
+                - 2 * V0 * term_2
+                + V_end**2 * term_1
+                + 2 * V_end * term_2
+            )
+            - Y_XS
+            * term_3
+            * (-V0 * term_4 + V_end * term_4 + X0 * Y_AS * pi_0 + X0 * Y_PS * rho)
+        ) / (Y_AS * (Y_PS + Y_XS * pi_1) * term_3)
+
+    def _get_G_max_from_F_max_newton(self, V_end, F_max):
+        """
+        NOTE: This is only here for reference (use the analytical solution below).
+
+        Uses Newton's method to determine the maximum constant growth rate that doesn't
+        exceed `F_max` at the end of the feed (at `V=V_end`).
+        """
+
+        def diff_to_F_max(G):
+            """
+            Get the difference between `F_max` and the feed rate corresponding to `G` at
+            `V=V_end`.
+            """
+            G_F0, G_dF = self.F0_and_dF_for_constant_growth(G)
+            t_end = self.t_until_V(V_end, G_dF, G_F0)
+            F_end = G_F0 + t_end * G_dF
+            return F_end - F_max
+
+        G_max = scipy.optimize.newton(func=diff_to_F_max, x0=0, disp=True)
+        return G_max

@@ -19,6 +19,7 @@ import util
 from process_stages import (
     ExponentialStageAnalytical as ExpS1,
     ConstantStageAnalytical as ConstS1,
+    LinearStageConstantGrowthAnalytical as LinS1,
     NoGrowthConstantStage as NoGrowthS2,
 )
 
@@ -26,15 +27,30 @@ from process_stages import (
 NAVBAR_OPTIONS = ui.navbar_options(bg="#efefef")
 APP_NAME = "FedBatchDesigner"
 MAIN_NAVBAR_ID = "main_navbar"
-N_MINIMUM_LEVELS_FOR_MU_OR_F = 15
+N_MINIMUM_LEVELS_FOR_GROWTH_PARAM = 15
 V_FRAC_STEP = 0.02
 ROUND_DIGITS = 5
 N_CONTOURS = 30
 
+# define the feed types for the first stage and add some attributes to the corresponding
+# classes
+STAGE_1_TYPES = [ConstS1, LinS1, ExpS1]
+
+ExpS1.feed_type = "exponential"
+ExpS1.growth_param = "mu"
+ExpS1.extra_columns = ["substrate_start_volume", "F0"]
+
+ConstS1.feed_type = "constant"
+ConstS1.growth_param = "F"
+ConstS1.extra_columns = ["mu_max"]
+
+LinS1.feed_type = "linear"
+LinS1.growth_param = "G"
+LinS1.extra_columns = ["F0", "dF"]
+
 # reactive values
+GRID_SEARCH_DFS = {stage_cls: reactive.value(None) for stage_cls in STAGE_1_TYPES}
 PARSED_PARAMS = reactive.value(None)
-DF_GRID_SEARCH_MU = reactive.value(None)
-DF_GRID_SEARCH_F = reactive.value(None)
 
 ui.page_opts(title="FedBatchDesigner", full_width=True, id="page")
 
@@ -113,37 +129,57 @@ def run_grid_search(stage_1, input_params):
     user parameters.
     """
 
-    mu_or_F = "mu" if isinstance(stage_1, ExpS1) else "F"
+    growth_param = stage_1.growth_param
 
-    if mu_or_F == "mu" and (mu_min := input_params["common"]["mu_min"]) is None:
-        # handle `mu_min` separately as per default we use `mu_max / 20` if not required
-        # (and in that case we'll just get a linspace from `mu_min` to `mu_max` with 20
-        # values)
+    if (
+        isinstance(stage_1, ExpS1)
+        and (mu_min := input_params["common"]["mu_min"]) is None
+    ):
+        # exponential feed and no `mu_min` was provided; set to `mu_max / 20` (and in
+        # that case we'll just get a linspace from `mu_min` to `mu_max` with 20 values)
         mu_max = input_params["common"]["mu_max"]
-        mus_or_Fs = np.linspace(mu_max / 20, mu_max, 20).round(ROUND_DIGITS)
+        growth_val_range = np.linspace(mu_max / 20, mu_max, 20).round(ROUND_DIGITS)
     else:
-        # we either got constant feed or a user-provided `mu_min`
-        min_mu_or_F = stage_1.F_min if mu_or_F == "F" else mu_min
-        # get range of `mu` (or `F`) and `V_frac` values (and round to avoid floating
-        # point issues)
-        mus_or_Fs = util.get_first_nice_value_range_with_at_least_N_values(
-            min_val=min_mu_or_F,
-            max_val=input_params["common"][f"{mu_or_F}_max"],
-            min_n_values=N_MINIMUM_LEVELS_FOR_MU_OR_F,
-        ).round(ROUND_DIGITS)
-    if mus_or_Fs[-1] < input_params["common"][f"{mu_or_F}_max"]:
-        mus_or_Fs = np.append(mus_or_Fs, input_params["common"][f"{mu_or_F}_max"])
-    V_frac = np.arange(0, 1 + V_FRAC_STEP, V_FRAC_STEP).round(ROUND_DIGITS)
-    V_intervals = (
+        # we either got linear / constant feed or the user proved a `mu_min`
+        if isinstance(stage_1, LinS1):
+            # we test a range of constant absolute (not specific) growth rates `G` from
+            # 0 g/h to `G_max`, where `G_max` is such that neither `mu_max` nor `F_max`
+            # are exceeded.
+            growth_param_min_val = 0
+            # for a constant absolute growth rate (e.g. 2 g/h) `mu` is largest at `t=0`
+            G_max_mu = stage_1.X0 * input_params["common"]["mu_max"]
+            # `F` is largest at the end of the feed phase (make sure we don't exceed
+            # `F_max`)
+            G_max_F = stage_1.get_G_max_from_F_max(
+                input_params["common"]["V_max"], input_params["common"]["F_max"]
+            )
+            growth_param_max_val = min(G_max_mu, G_max_F)
+        else:
+            # constant or exponential feed
+            growth_param_min_val = stage_1.F_min if growth_param == "F" else mu_min
+            growth_param_max_val = input_params["common"][f"{growth_param}_max"]
+        # get a range of values of the "growth parameter" (`mu`, `F`, or `G`) and round
+        # to avoid floating point issues
+        growth_val_range = util.get_range_with_at_least_N_nice_values(
+            min_val=growth_param_min_val,
+            max_val=growth_param_max_val,
+            min_n_values=N_MINIMUM_LEVELS_FOR_GROWTH_PARAM,
+            always_include_max=True,
+            round_digits=ROUND_DIGITS,
+        )
+    # get `V_frac` range between 0 and 1
+    V_frac_range = np.arange(0, 1 + V_FRAC_STEP, V_FRAC_STEP).round(ROUND_DIGITS)
+    V_interval_range = (
         input_params["common"]["V_batch"]
-        + (input_params["common"]["V_max"] - input_params["common"]["V_batch"]) * V_frac
+        + (input_params["common"]["V_max"] - input_params["common"]["V_batch"])
+        * V_frac_range
     )
 
     # initialise empty results df
     df_comb = pd.DataFrame(
         np.nan,
         index=pd.MultiIndex.from_product(
-            (mus_or_Fs, V_frac), names=[mu_or_F, "V_frac"]
+            (growth_val_range, V_frac_range), names=[growth_param, "V_frac"]
         ),
         columns=["V1", "X1", "P1", "t_switch", "V2", "X2", "P2", "F2", "t_end"],
     )
@@ -151,9 +187,9 @@ def run_grid_search(stage_1, input_params):
     # for each `F`, get the points in the exponential feed at all `V_frac`; then "fill
     # up" until `V_max` with a constant feed rate and calculate productivity based on
     # the end time
-    for m_or_F in mus_or_Fs:
-        df_s1 = stage_1.evaluate_at_V(Vs=V_intervals, **{mu_or_F: m_or_F})
-        df_s1["V_frac"] = V_frac
+    for growth_val in growth_val_range:
+        df_s1 = stage_1.evaluate_at_V(V=V_interval_range, **{growth_param: growth_val})
+        df_s1["V_frac"] = V_frac_range
         for t_switch, row_s1 in df_s1.iterrows():
             stage_2 = NoGrowthS2(
                 *row_s1[["V", "X", "P"]],
@@ -164,7 +200,7 @@ def run_grid_search(stage_1, input_params):
             # get constant feed rate in stage 2 and the end time
             F2 = stage_2.F
             t_end = row_s2.name + t_switch
-            df_comb.loc[(m_or_F, row_s1["V_frac"])] = [
+            df_comb.loc[(growth_val, row_s1["V_frac"])] = [
                 *row_s1[["V", "X", "P"]],
                 t_switch,
                 *row_s2[["V", "X", "P"]],
@@ -187,18 +223,25 @@ def run_grid_search(stage_1, input_params):
     df_comb["substrate_yield"] = df_comb["P2"] / df_comb["S2"]
 
     # if exponential, add substrate start volume; if constant, add mu in first instance
-    # of feed
-    if mu_or_F == "mu":
+    # of feed (as this will be the largest mu encountered in the feed phase)
+    if growth_param == "mu":
         # exponential feed --> add substrate start volume and initial feed rate for each
         # `mu` to the results
         for mu, _ in df_comb.groupby("mu"):
             ssv = stage_1.substrate_start_volume(mu)
             df_comb.loc[(mu, slice(None)), "substrate_start_volume"] = ssv
             df_comb.loc[(mu, slice(None)), "F0"] = ssv / mu
-    else:
+    elif growth_param == "F":
         # constant feed --> add maximum growth rate (at first instance of feed)
         for F, _ in df_comb.groupby("F"):
             df_comb.loc[(F, slice(None)), "mu_max"] = stage_1.calculate_initial_mu(F)
+    elif growth_param == "G":
+        # linear feed with constant absolute growth --> add maximum specific growth rate
+        # and feed rate
+        for G, _ in df_comb.groupby("G"):
+            F0, dF = stage_1.F0_and_dF_for_constant_growth(G=G)
+            df_comb.loc[(G, slice(None)), "F0"] = F0
+            df_comb.loc[(G, slice(None)), "dF"] = dF
     return df_comb
 
 
@@ -229,31 +272,29 @@ def submit_button():
         X_batch = (
             parsed_params["common"]["x_batch"] * parsed_params["common"]["V_batch"]
         )
-        const_s1 = ConstS1(
-            V0=parsed_params["common"]["V_batch"],
-            X0=X_batch,
-            P0=0,
-            s_f=parsed_params["common"]["s_f"],
-            **parsed_params["s1"],
-        )
-        exp_s1 = ExpS1(
-            V0=parsed_params["common"]["V_batch"],
-            X0=X_batch,
-            P0=0,
-            s_f=parsed_params["common"]["s_f"],
-            **parsed_params["s1"],
-        )
-        # (for now we only check if `mu_max` or `F_max` are larger than the minimum feed
-        # rate required to add enough medium in the first instant of the feed phase, but we
-        # could add more checks in the future)
-        if const_s1.F_min > parsed_params["common"]["F_max"]:
+        stage_instances = {
+            stage_type: stage_type(
+                V0=parsed_params["common"]["V_batch"],
+                X0=X_batch,
+                P0=0,
+                s_f=parsed_params["common"]["s_f"],
+                **parsed_params["s1"],
+            )
+            for stage_type in STAGE_1_TYPES
+        }
+
+        # (for now we only check if `F_max` is smaller than the minimum feed rate
+        # required to add enough medium in the first instant of constant feed, but we
+        # should add more checks in the future)
+        if stage_instances[ConstS1].F_min > parsed_params["common"]["F_max"]:
             # parameters are infeasible; `F_max` needs to be increased
             ui.notification_show(
                 """
-                Submitted parameters are infeasible. The minimum F value required in order
-                to add enough feed medium in the first instant of the feed phase is larger
-                than the maximum F value provided. Increase 'F_max' or adjust other parameters
-                (e.g. X_batch, s_f, maintenance requirement, etc).
+                Submitted parameters are infeasible. The minimum F value required in
+                order to add enough feed medium in the first instant of the constant
+                feed phase is larger than the maximum F value provided. Increase 'F_max'
+                or adjust other parameters (e.g. X_batch, s_f, maintenance requirement,
+                etc).
                 """,
                 type="error",
                 duration=30,
@@ -269,10 +310,8 @@ def submit_button():
         )
         ui.modal_show(m)
 
-        df_grid_mu = run_grid_search(exp_s1, parsed_params)
-        DF_GRID_SEARCH_MU.set(df_grid_mu)
-        df_grid_F = run_grid_search(const_s1, parsed_params)
-        DF_GRID_SEARCH_F.set(df_grid_F)
+        for stage_cls, instance in stage_instances.items():
+            GRID_SEARCH_DFS[stage_cls].set(run_grid_search(instance, parsed_params))
 
         # calculations are done; remove the modal and jump to "Results"
         ui.modal_remove()
@@ -306,19 +345,20 @@ def submit_button():
 
 
 @module
-def results(input, output, session, exp_or_const):
-    mu_or_F = {"exponential": "mu", "constant": "F"}[exp_or_const]
+def results(input, output, session, stage_1_type):
+    growth_param = stage_1_type.growth_param
+    feed_type = stage_1_type.feed_type
 
     @render.express
     def _results():
         linked_plots = []
         parsed_params = PARSED_PARAMS.get()
-        df_comb = (DF_GRID_SEARCH_MU if mu_or_F == "mu" else DF_GRID_SEARCH_F).get()
+        grid_search_df = GRID_SEARCH_DFS[stage_1_type].get()
         selected_process = reactive.Value({})
 
         # check if the grid search has been run; if not (i.e. we don't have results
         # yet), show a message and return
-        if df_comb is None:
+        if grid_search_df is None:
             with ui.card():
                 ui.h4("No results yet", style="text-align: center;")
                 with ui.div(style="justify-content: center; display: flex"):
@@ -331,8 +371,8 @@ def results(input, output, session, exp_or_const):
 
         ui.tags.p(
             f"""
-            Concentration profiles were calculated for different values of {mu_or_F}
-            and the {params.results["V_frac"].description.lower()}.
+            Concentration profiles were calculated for different values of
+            {growth_param} and the {params.results["V_frac"].description.lower()}.
             """,
             ui.tags.br(),
             "You can click into one of the plots to select a process.",
@@ -360,10 +400,10 @@ def results(input, output, session, exp_or_const):
                         return plots.ContourPlot(
                             linked_plots=linked_plots,
                             selected_process=selected_process,
-                            df=df_comb,
-                            mu_or_F=mu_or_F,
+                            df=grid_search_df,
+                            growth_param=growth_param,
                             x_col="V_frac",
-                            y_col=mu_or_F,
+                            y_col=growth_param,
                             z_col="space_time_yield",
                             text_col="p2",
                             n_contours=N_CONTOURS,
@@ -374,10 +414,10 @@ def results(input, output, session, exp_or_const):
                         return plots.ContourPlot(
                             linked_plots=linked_plots,
                             selected_process=selected_process,
-                            df=df_comb,
-                            mu_or_F=mu_or_F,
+                            df=grid_search_df,
+                            growth_param=growth_param,
                             x_col="V_frac",
-                            y_col=mu_or_F,
+                            y_col=growth_param,
                             z_col="p2",
                             text_col="space_time_yield",
                             n_contours=N_CONTOURS,
@@ -392,8 +432,8 @@ def results(input, output, session, exp_or_const):
                         return plots.LinePlot(
                             linked_plots=linked_plots,
                             selected_process=selected_process,
-                            df=df_comb,
-                            mu_or_F=mu_or_F,
+                            df=grid_search_df,
+                            growth_param=growth_param,
                             x_col="p2",
                             y_col="space_time_yield",
                         ).fig
@@ -403,10 +443,10 @@ def results(input, output, session, exp_or_const):
                         return plots.SelectedProcessPlot(
                             linked_plots=linked_plots,
                             selected_process=selected_process,
-                            df=df_comb,
-                            mu_or_F=mu_or_F,
+                            df=grid_search_df,
+                            growth_param=growth_param,
                             params=parsed_params,
-                            stage_1_class=ConstS1 if mu_or_F == "F" else ExpS1,
+                            stage_1_class=stage_1_type,
                             stage_2_class=NoGrowthS2,
                         ).fig
 
@@ -429,18 +469,14 @@ def results(input, output, session, exp_or_const):
                     @render.download(
                         label="Download CSV",
                         filename=(
-                            f"{APP_NAME}_grid_search_results_{exp_or_const}_feed.csv"
+                            f"{APP_NAME}_grid_search_results_{feed_type}_feed.csv"
                         ),
                     )
                     def download_grid_search_results():
-                        yield df_comb.to_csv()
+                        yield grid_search_df.to_csv()
 
-                params_for_tables = (
-                    ["substrate_start_volume", "F0"]
-                    if exp_or_const == "exponential"
-                    else ["mu_max"]
-                ) + [
-                    mu_or_F,
+                params_for_tables = stage_1_type.extra_columns + [
+                    growth_param,
                     "V_frac",
                     "V1",
                     "V2",
@@ -465,7 +501,7 @@ def results(input, output, session, exp_or_const):
                         )
 
                         opt_row = util.get_df_row_with_index(
-                            df_comb, df_comb["productivity"].idxmax()
+                            grid_search_df, grid_search_df["productivity"].idxmax()
                         )
 
                         with ui.card():
@@ -498,8 +534,7 @@ def results(input, output, session, exp_or_const):
                             @render.download(
                                 label="Download CSV",
                                 filename=(
-                                    f"{APP_NAME}_optimal_process_"
-                                    f"{exp_or_const}_feed.csv"
+                                    f"{APP_NAME}_optimal_process_{feed_type}_feed.csv"
                                 ),
                             )
                             def download_optimal():
@@ -533,7 +568,8 @@ def results(input, output, session, exp_or_const):
                             sel_params = selected_process.get()
                             if sel_params:
                                 sel_row = util.get_df_row_with_index(
-                                    df_comb, (sel_params[mu_or_F], sel_params["V_frac"])
+                                    grid_search_df,
+                                    (sel_params[growth_param], sel_params["V_frac"]),
                                 )
 
                             with ui.p():
@@ -570,7 +606,7 @@ def results(input, output, session, exp_or_const):
                                     label="Download CSV",
                                     filename=(
                                         f"{APP_NAME}_selected_process_"
-                                        f"{exp_or_const}_feed.csv"
+                                        f"{feed_type}_feed.csv"
                                     ),
                                 )
                                 def download_selected():
@@ -653,13 +689,15 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                 with card_with_nav_header(title="Feed parameters"):
                     ui.p(
                         f"""
-                        {params.feed["V_max"].label} -
-                        {params.batch["V_batch"].label} is the volume of medium
-                        added during the feed phase. Specific growth rates up to
-                        {params.feed["mu_max"].label} are considered when
-                        optimizing the the exponential feed and feed rates up to
-                        {params.feed["F_max"].label} are considered when
-                        optimizing the constant feed.
+                        {params.feed["V_max"].label} - {params.batch["V_batch"].label}
+                        is the volume of medium added during the feed phase. Specific
+                        growth rates up to {params.feed["mu_max"].label} are considered
+                        when optimizing the the exponential feed and feed rates up to
+                        {params.feed["F_max"].label} are considered when optimizing the
+                        constant feed. For linear feed it is made sure that the specific
+                        growth rate never exceeds {params.feed["mu_max"].label} and that
+                        the feed rate is always smaller than
+                        {params.feed["F_max"].label}.
                         """
                     )
                     with ui.layout_column_wrap(width=1 / 2):
@@ -725,9 +763,9 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                                                 )
                                                 ui.tags.p(v.description)
 
-    for exp_or_const in ["constant", "exponential"]:
-        with ui.nav_panel(f"Results {exp_or_const} feed"):
-            results(f"{exp_or_const}_results", exp_or_const=exp_or_const)
+    for stage_1_type in STAGE_1_TYPES:
+        with ui.nav_panel(f"Results {stage_1_type.feed_type} feed"):
+            results(f"{stage_1_type.feed_type}_results", stage_1_type)
 
     with ui.nav_panel("Info"):
         info.info()

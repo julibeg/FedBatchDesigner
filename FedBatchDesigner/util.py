@@ -43,16 +43,27 @@ def get_increasingly_smaller_steps(smaller_than=10):
         factor *= 0.1
 
 
-def get_first_nice_value_range_with_at_least_N_values(min_val, max_val, min_n_values):
+def get_range_with_at_least_N_nice_values(
+    min_val, max_val, min_n_values, always_include_max=False, round_digits=None
+):
     """
-    Find a value range with nice values and the largest-possible step size (from
+    Find a value range with "nice" values and the largest-possible step size (from
     `steps`) that has at least `min_n_values` values.
     """
-    for step in get_increasingly_smaller_steps(min_val):
+    for step in get_increasingly_smaller_steps(max_val - min_val):
         vals = nice_value_range(min_val, max_val, step)
         if len(vals) >= min_n_values:
-            return vals
-    # if no range with at least `min_n_values` values was found, return the smallest
+            break
+    if round_digits is not None:
+        vals = np.round(vals, round_digits)
+    # if no range with at least `min_n_values` values was found, the for loop finished
+    # and we return the range with the smallest steps
+    if always_include_max:
+        if np.isclose(vals[-1], max_val):
+            # replace in case there are tiny differences due to rounding etc.
+            vals[-1] = max_val
+        else:
+            vals = np.append(vals, max_val)
     return vals
 
 
