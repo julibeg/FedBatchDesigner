@@ -29,7 +29,7 @@ APP_NAME = "FedBatchDesigner"
 MAIN_NAVBAR_ID = "main_navbar"
 N_MINIMUM_LEVELS_FOR_GROWTH_PARAM = 15
 V_FRAC_STEP = 0.02
-ROUND_DIGITS = 5
+ROUND_DIGITS = util.ROUND_DIGITS
 N_CONTOURS = 30
 
 # define the feed types for the first stage and add some attributes to the corresponding
@@ -144,29 +144,29 @@ def run_grid_search(stage_1, input_params):
         if isinstance(stage_1, LinS1):
             # we test a range of constant absolute (not specific) growth rates `G` from
             # 0 g/h to `G_max`, where `G_max` is such that neither `mu_max` nor `F_max`
-            # are exceeded.
-            growth_param_min_val = 0
-            # for a constant absolute growth rate (e.g. 2 g/h) `mu` is largest at `t=0`
+            # are exceeded. For a constant absolute growth rate (e.g. 2 g/h) `mu` is
+            # largest at `t=0` and `F` is largest at the end of the feed phase
             G_max_mu = stage_1.X0 * input_params["common"]["mu_max"]
-            # `F` is largest at the end of the feed phase (make sure we don't exceed
-            # `F_max`)
             G_max_F = stage_1.get_G_max_from_F_max(
                 input_params["common"]["V_max"], input_params["common"]["F_max"]
             )
-            growth_param_max_val = min(G_max_mu, G_max_F)
+            # get a range of values of the constant absolute growth rate and round to
+            # avoid floating point issues
+            growth_val_range = util.get_range_with_at_least_N_nice_values(
+                min_val=0,
+                max_val=min(G_max_mu, G_max_F),
+                min_n_values=N_MINIMUM_LEVELS_FOR_GROWTH_PARAM,
+                round=True,
+            )
         else:
-            # constant or exponential feed
-            growth_param_min_val = stage_1.F_min if growth_param == "F" else mu_min
-            growth_param_max_val = input_params["common"][f"{growth_param}_max"]
-        # get a range of values of the "growth parameter" (`mu`, `F`, or `G`) and round
-        # to avoid floating point issues
-        growth_val_range = util.get_range_with_at_least_N_nice_values(
-            min_val=growth_param_min_val,
-            max_val=growth_param_max_val,
-            min_n_values=N_MINIMUM_LEVELS_FOR_GROWTH_PARAM,
-            always_include_max=True,
-            round_digits=ROUND_DIGITS,
-        )
+            # constant or exponential feed (get range of `F` or `mu` values)
+            growth_val_range = util.get_range_with_at_least_N_nice_values(
+                min_val=stage_1.F_min if growth_param == "F" else mu_min,
+                max_val=input_params["common"][f"{growth_param}_max"],
+                min_n_values=N_MINIMUM_LEVELS_FOR_GROWTH_PARAM,
+                always_include_max=True,
+                round=True,
+            )
     # get `V_frac` range between 0 and 1
     V_frac_range = np.arange(0, 1 + V_FRAC_STEP, V_FRAC_STEP).round(ROUND_DIGITS)
     V_interval_range = (
@@ -242,7 +242,7 @@ def run_grid_search(stage_1, input_params):
             F0, dF = stage_1.F0_and_dF_for_constant_growth(G=G)
             df_comb.loc[(G, slice(None)), "F0"] = F0
             df_comb.loc[(G, slice(None)), "dF"] = dF
-    return df_comb
+    return df_comb.round(ROUND_DIGITS)
 
 
 @reactive.Effect

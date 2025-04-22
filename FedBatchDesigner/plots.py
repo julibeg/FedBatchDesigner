@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 
 import colors
 from params import results
+from util import ROUND_DIGITS
 
 HIGHLIGHT_LINE_KWARGS = dict(
     line_dash="dash",
@@ -276,7 +277,9 @@ class LinePlot(PlotWithMarkers):
 
         # get values of optimal point (which is always the first point we highlight) and
         # add the marker + hline / vline
-        x_opt, y_opt = self.df.loc[(growth_param_opt, V_frac_opt), [self.x_col, self.y_col]]
+        x_opt, y_opt = self.df.loc[
+            (growth_param_opt, V_frac_opt), [self.x_col, self.y_col]
+        ]
 
         # add a point and horizontal + vertical lines to mark the "optimal" as well as
         # the "selected" process (i.e. with a specific `mu` or `F` and `V_frac`)
@@ -533,7 +536,9 @@ class SelectedProcessPlot(Plot):
         df = self.get_process_trajectory(growth_param_val, V_frac)
         # update the traces
         for i, col in enumerate(["V", "X", "P", "x", "p"]):
-            self.fig.update_traces(selector=i, x=df.index, y=df[col])
+            self.fig.update_traces(
+                selector=i, x=df.index, y=df[col].round(ROUND_DIGITS)
+            )
         # update the vertical line at `t_switch`
         t_switch = self.df.loc[(growth_param_val, V_frac)]["t_switch"]
         self.fig.update_shapes(selector=0, x0=t_switch, x1=t_switch)

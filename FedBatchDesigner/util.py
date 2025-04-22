@@ -1,6 +1,7 @@
 import numpy as np
 
 EPSILON = np.finfo(float).eps
+ROUND_DIGITS = 5
 
 
 def get_df_row_with_index(df, idx):
@@ -44,7 +45,12 @@ def get_increasingly_smaller_steps(smaller_than=10):
 
 
 def get_range_with_at_least_N_nice_values(
-    min_val, max_val, min_n_values, always_include_max=False, round_digits=None
+    min_val,
+    max_val,
+    min_n_values,
+    round=False,
+    always_include_min=False,
+    always_include_max=False,
 ):
     """
     Find a value range with "nice" values and the largest-possible step size (from
@@ -54,10 +60,16 @@ def get_range_with_at_least_N_nice_values(
         vals = nice_value_range(min_val, max_val, step)
         if len(vals) >= min_n_values:
             break
-    if round_digits is not None:
-        vals = np.round(vals, round_digits)
+    if round:
+        vals = np.round(vals, ROUND_DIGITS)
     # if no range with at least `min_n_values` values was found, the for loop finished
     # and we return the range with the smallest steps
+    if always_include_min:
+        if np.isclose(vals[0], min_val):
+            # replace in case there are tiny differences due to rounding etc.
+            vals[0] = min_val
+        else:
+            vals = np.insert(vals, 0, min_val)
     if always_include_max:
         if np.isclose(vals[-1], max_val):
             # replace in case there are tiny differences due to rounding etc.
@@ -76,9 +88,9 @@ def nice_value_range(min_val, max_val, step):
     [0.5, 1.0, 1.5, 2.0, 2.5]
     """
     high = max_val
-    low = min_val - step
-    vals = np.arange(high, low, -step)
-    return vals[(vals > min_val - EPSILON) & (vals < max_val + EPSILON)][::-1]
+    low = min_val - (min_val % step)
+    vals = np.arange(low, high, step)
+    return vals[(vals > min_val - EPSILON) & (vals < max_val + EPSILON)]
 
 
 def quadratic_formula(a, b, c, plus_only=False):
