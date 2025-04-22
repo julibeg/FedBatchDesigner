@@ -372,7 +372,8 @@ def results(input, output, session, stage_1_type):
         ui.tags.p(
             f"""
             Concentration profiles were calculated for different values of
-            {growth_param} and the {params.results["V_frac"].description.lower()}.
+            {growth_param} (the {params.results[growth_param].description.lower()}) and
+            the {params.results["V_frac"].description.lower()}.
             """,
             ui.tags.br(),
             "You can click into one of the plots to select a process.",
