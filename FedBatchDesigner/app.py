@@ -46,7 +46,7 @@ ConstS1.extra_columns = ["mu_max"]
 
 LinS1.feed_type = "linear"
 LinS1.growth_param = "G"
-LinS1.extra_columns = ["F0", "dF"]
+LinS1.extra_columns = ["F0", "dF", "mu_max", "F_max"]
 
 # reactive values
 GRID_SEARCH_DFS = {stage_cls: reactive.value(None) for stage_cls in STAGE_1_TYPES}
@@ -131,42 +131,50 @@ def run_grid_search(stage_1, input_params):
 
     growth_param = stage_1.growth_param
 
-    if (
-        isinstance(stage_1, ExpS1)
-        and (mu_min := input_params["common"]["mu_min"]) is None
-    ):
-        # exponential feed and no `mu_min` was provided; set to `mu_max / 20` (and in
-        # that case we'll just get a linspace from `mu_min` to `mu_max` with 20 values)
-        mu_max = input_params["common"]["mu_max"]
-        growth_val_range = np.linspace(mu_max / 20, mu_max, 20).round(ROUND_DIGITS)
-    else:
-        # we either got linear / constant feed or the user proved a `mu_min`
-        if isinstance(stage_1, LinS1):
-            # we test a range of constant absolute (not specific) growth rates `G` from
-            # 0 g/h to `G_max`, where `G_max` is such that neither `mu_max` nor `F_max`
-            # are exceeded. For a constant absolute growth rate (e.g. 2 g/h) `mu` is
-            # largest at `t=0` and `F` is largest at the end of the feed phase
-            G_max_mu = stage_1.X0 * input_params["common"]["mu_max"]
-            G_max_F = stage_1.get_G_max_from_F_max(
-                input_params["common"]["V_max"], input_params["common"]["F_max"]
-            )
-            # get a range of values of the constant absolute growth rate and round to
-            # avoid floating point issues
-            growth_val_range = util.get_range_with_at_least_N_nice_values(
-                min_val=0,
-                max_val=min(G_max_mu, G_max_F),
-                min_n_values=N_MINIMUM_LEVELS_FOR_GROWTH_PARAM,
-                round=True,
-            )
+    # for each feed type we need to make sure we never exceed `F_max` nor `mu`
+    if isinstance(stage_1, ExpS1):
+        if (mu_min := input_params["common"]["mu_min"]) is None:
+            # exponential feed and no `mu_min` was provided; set to `mu_max / 20` (and
+            # in that case we'll just get a linspace from `mu_min` to `mu_max` with 20
+            # values)
+            mu_max = input_params["common"]["mu_max"]
+            growth_val_range = np.linspace(mu_max / 20, mu_max, 20).round(ROUND_DIGITS)
         else:
-            # constant or exponential feed (get range of `F` or `mu` values)
             growth_val_range = util.get_range_with_at_least_N_nice_values(
-                min_val=stage_1.F_min if growth_param == "F" else mu_min,
-                max_val=input_params["common"][f"{growth_param}_max"],
+                min_val=mu_min,
+                max_val=input_params["common"]["mu_max"],
                 min_n_values=N_MINIMUM_LEVELS_FOR_GROWTH_PARAM,
                 always_include_max=True,
                 round=True,
             )
+    elif isinstance(stage_1, LinS1):
+        # we test a range of constant absolute (not specific) growth rates `G` from
+        # 0 g/h to `G_max`, where `G_max` is such that neither `mu_max` nor `F_max`
+        # are exceeded. For a constant absolute growth rate (e.g. 2 g/h) `mu` is
+        # largest at `t=0` and `F` is largest at the end of the feed phase
+        G_max_mu = stage_1.X0 * input_params["common"]["mu_max"]
+        G_max_F = stage_1.get_G_max_from_F_max(
+            input_params["common"]["V_max"], input_params["common"]["F_max"]
+        )
+        # get a range of values of the constant absolute growth rate and round to
+        # avoid floating point issues
+        growth_val_range = util.get_range_with_at_least_N_nice_values(
+            min_val=0,
+            max_val=min(G_max_mu, G_max_F),
+            min_n_values=N_MINIMUM_LEVELS_FOR_GROWTH_PARAM,
+            round=True,
+        )
+    elif isinstance(stage_1, ConstS1):
+        F_max_mu = stage_1.calculate_F_from_initial_mu(mu_max)
+        growth_val_range = util.get_range_with_at_least_N_nice_values(
+            min_val=stage_1.F_min,
+            max_val=min(input_params["common"]["F_max"], F_max_mu),
+            min_n_values=N_MINIMUM_LEVELS_FOR_GROWTH_PARAM,
+            always_include_max=True,
+            round=True,
+        )
+    else:
+        raise ValueError(f"`stage_1` has unexpected type: {type(stage_1)}")
     # get `V_frac` range between 0 and 1
     V_frac_range = np.arange(0, 1 + V_FRAC_STEP, V_FRAC_STEP).round(ROUND_DIGITS)
     V_interval_range = (
@@ -234,14 +242,22 @@ def run_grid_search(stage_1, input_params):
     elif growth_param == "F":
         # constant feed --> add maximum growth rate (at first instance of feed)
         for F, _ in df_comb.groupby("F"):
-            df_comb.loc[(F, slice(None)), "mu_max"] = stage_1.calculate_initial_mu(F)
+            df_comb.loc[(F, slice(None)), "mu_max"] = (
+                stage_1.calculate_initial_mu_from_F(F)
+            )
     elif growth_param == "G":
         # linear feed with constant absolute growth --> add maximum specific growth rate
         # and feed rate
-        for G, _ in df_comb.groupby("G"):
+        for G, df in df_comb.groupby("G"):
             F0, dF = stage_1.F0_and_dF_for_constant_growth(G=G)
             df_comb.loc[(G, slice(None)), "F0"] = F0
             df_comb.loc[(G, slice(None)), "dF"] = dF
+            df_comb.loc[(G, slice(None)), "mu_max"] = (
+                stage_1.calculate_initial_mu_from_F(F0)
+            )
+            df_comb.loc[(G, slice(None)), "F_max"] = stage_1.dV(
+                G=G, t=df["t_switch"].iloc[-1]
+            )
     return df_comb.round(ROUND_DIGITS)
 
 
@@ -476,7 +492,7 @@ def results(input, output, session, stage_1_type):
                     def download_grid_search_results():
                         yield grid_search_df.to_csv()
 
-                params_for_tables = stage_1_type.extra_columns + [
+                metrics_for_tables = stage_1_type.extra_columns + [
                     growth_param,
                     "V_frac",
                     "V1",
@@ -522,7 +538,7 @@ def results(input, output, session, stage_1_type):
                                     """
 
                             with ui.p():
-                                for p in params_for_tables:
+                                for p in metrics_for_tables:
                                     with ui.tooltip():
                                         ui.tags.b(f"{params.results[p].label}:")
                                         params.results[p].description
@@ -574,7 +590,7 @@ def results(input, output, session, stage_1_type):
                                 )
 
                             with ui.p():
-                                for p in params_for_tables:
+                                for p in metrics_for_tables:
                                     with ui.tooltip():
                                         ui.tags.b(f"{params.results[p].label}:")
                                         params.results[p].description

@@ -58,8 +58,8 @@ class ConstantFeed:
         """
         return self.initial_glc_for_rho_and_pi_0 / self.s_f
 
-    def calculate_initial_mu(self, F):
-        """Calculate the growth rate at the first instance of constant feed."""
+    def calculate_initial_mu_from_F(self, F):
+        """Calculate the specific growth rate at the first instance of constant feed."""
         # put parameters into variables for convenience
         Y_XS = self.Y_XS
         Y_AS = self.Y_AS
@@ -77,6 +77,27 @@ class ConstantFeed:
         )
 
         return mu
+
+    def calculate_F_from_initial_mu(self, mu):
+        """
+        Calculate feed rate required to achieve a certain specific growth rate at the
+        beginning of the feed.
+        """
+        Y_XS = self.Y_XS
+        Y_AS = self.Y_AS
+        Y_PS = self.Y_PS
+        s_f = self.s_f
+        rho = self.rho
+        pi_0 = self.pi_0
+        pi_1 = self.pi_1
+        X = self.X0
+
+        F = (
+            X
+            * (Y_AS * Y_PS * mu + Y_AS * Y_XS * (mu * pi_1 + pi_0) + Y_PS * Y_XS * rho)
+            / (Y_AS * Y_PS * Y_XS * s_f)
+        )
+        return F
 
 
 class LinearFeed(ConstantFeed):

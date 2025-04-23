@@ -121,12 +121,14 @@ results = {
         "Specific growth rate",
     ),
     "mu_max": ResultParam(
-        "Maximum growth rate",
+        "Maximum specific growth rate",
         "/h",
-        """
-        The largest specific growth rate during the constant feed phase (in the first
-        instance of the feed)
-        """,
+        """The largest specific growth rate encountered during the feed phase""",
+    ),
+    "F_max": ResultParam(
+        "Maximum feed rate",
+        "L/h",
+        "The largest feed rate encountered during the feed phase",
     ),
     "F": ResultParam(
         "Feed rate first stage",
