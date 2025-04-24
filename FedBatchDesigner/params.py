@@ -60,15 +60,6 @@ feed = {
         "L/h",
         "Maximum constant feed rate",
     ),
-    "mu_min": InputParam(
-        "\(\mu_\\textrm{min}\)",
-        "/h",
-        """
-        Minimum specific growth rate to consider during optimization (optional; uses 5%
-        of \(\mu_\\textrm{max}\) if not provided)
-        """,
-        required=False,
-    ),
 }
 
 common = {**batch, **feed}
