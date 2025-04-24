@@ -28,6 +28,7 @@ NAVBAR_OPTIONS = ui.navbar_options(bg="#efefef")
 APP_NAME = "FedBatchDesigner"
 MAIN_NAVBAR_ID = "main_navbar"
 N_MINIMUM_LEVELS_FOR_GROWTH_PARAM = 15
+MU_MIN_FACTOR = 0.05
 V_FRAC_STEP = 0.02
 ROUND_DIGITS = util.ROUND_DIGITS
 N_CONTOURS = 30
@@ -38,7 +39,7 @@ STAGE_1_TYPES = [ConstS1, LinS1, ExpS1]
 
 ExpS1.feed_type = "exponential"
 ExpS1.growth_param = "mu"
-ExpS1.extra_columns = ["substrate_start_volume", "F0"]
+ExpS1.extra_columns = ["substrate_start_volume", "F0", "F_end"]
 
 ConstS1.feed_type = "constant"
 ConstS1.growth_param = "F"
@@ -46,7 +47,7 @@ ConstS1.extra_columns = ["mu_max"]
 
 LinS1.feed_type = "linear"
 LinS1.growth_param = "G"
-LinS1.extra_columns = ["F0", "dF", "mu_max", "F_max"]
+LinS1.extra_columns = ["F0", "dF", "mu_max", "F_end"]
 
 # reactive values
 GRID_SEARCH_DFS = {stage_cls: reactive.value(None) for stage_cls in STAGE_1_TYPES}
@@ -129,65 +130,64 @@ def run_grid_search(stage_1, input_params):
     user parameters.
     """
 
-    growth_param = stage_1.growth_param
+    mu_min = input_params["common"]["mu_min"]
+    mu_max = input_params["common"]["mu_max"]
+    F_max = input_params["common"]["F_max"]
+    V_max = input_params["common"]["V_max"]
 
     # for each feed type we need to make sure we never exceed `F_max` nor `mu`
     if isinstance(stage_1, ExpS1):
-        if (mu_min := input_params["common"]["mu_min"]) is None:
-            # exponential feed and no `mu_min` was provided; set to `mu_max / 20` (and
-            # in that case we'll just get a linspace from `mu_min` to `mu_max` with 20
-            # values)
-            mu_max = input_params["common"]["mu_max"]
-            growth_val_range = np.linspace(mu_max / 20, mu_max, 20).round(ROUND_DIGITS)
-        else:
-            growth_val_range = util.get_range_with_at_least_N_nice_values(
-                min_val=mu_min,
-                max_val=input_params["common"]["mu_max"],
-                min_n_values=N_MINIMUM_LEVELS_FOR_GROWTH_PARAM,
-                always_include_max=True,
-                round=True,
-            )
+        # calculate the `mu_max` that ensures that the feed rate never exceeds
+        # `F_max`
+        mu_max_F_max = stage_1.calculate_mu_for_F_max(
+            F_max=F_max,
+            V_end=V_max,
+        )
+        mu_max = min(mu_max, mu_max_F_max)
+        mu_min = mu_max * MU_MIN_FACTOR
+        growth_val_range = util.get_range_with_at_least_N_nice_values(
+            min_val=mu_min,
+            max_val=mu_max,
+            min_n_values=N_MINIMUM_LEVELS_FOR_GROWTH_PARAM,
+            always_include_max=True,
+        )
     elif isinstance(stage_1, LinS1):
         # we test a range of constant absolute (not specific) growth rates `G` from
         # 0 g/h to `G_max`, where `G_max` is such that neither `mu_max` nor `F_max`
         # are exceeded. For a constant absolute growth rate (e.g. 2 g/h) `mu` is
         # largest at `t=0` and `F` is largest at the end of the feed phase
-        G_max_mu = stage_1.X0 * input_params["common"]["mu_max"]
-        G_max_F = stage_1.get_G_max_from_F_max(
-            input_params["common"]["V_max"], input_params["common"]["F_max"]
-        )
+        G_max_mu = stage_1.X0 * mu_max
+        G_max_F = stage_1.get_G_max_from_F_max(V_max, F_max)
         # get a range of values of the constant absolute growth rate and round to
         # avoid floating point issues
         growth_val_range = util.get_range_with_at_least_N_nice_values(
             min_val=0,
             max_val=min(G_max_mu, G_max_F),
             min_n_values=N_MINIMUM_LEVELS_FOR_GROWTH_PARAM,
-            round=True,
         )
     elif isinstance(stage_1, ConstS1):
-        F_max_mu = stage_1.calculate_F_from_initial_mu(mu_max)
+        F_max_mu_max = stage_1.calculate_F_from_initial_mu(mu_max)
         growth_val_range = util.get_range_with_at_least_N_nice_values(
             min_val=stage_1.F_min,
-            max_val=min(input_params["common"]["F_max"], F_max_mu),
+            max_val=min(F_max, F_max_mu_max),
             min_n_values=N_MINIMUM_LEVELS_FOR_GROWTH_PARAM,
             always_include_max=True,
-            round=True,
         )
     else:
         raise ValueError(f"`stage_1` has unexpected type: {type(stage_1)}")
+    growth_val_range = growth_val_range.round(ROUND_DIGITS)
     # get `V_frac` range between 0 and 1
     V_frac_range = np.arange(0, 1 + V_FRAC_STEP, V_FRAC_STEP).round(ROUND_DIGITS)
     V_interval_range = (
         input_params["common"]["V_batch"]
-        + (input_params["common"]["V_max"] - input_params["common"]["V_batch"])
-        * V_frac_range
+        + (V_max - input_params["common"]["V_batch"]) * V_frac_range
     )
 
     # initialise empty results df
     df_comb = pd.DataFrame(
         np.nan,
         index=pd.MultiIndex.from_product(
-            (growth_val_range, V_frac_range), names=[growth_param, "V_frac"]
+            (growth_val_range, V_frac_range), names=[stage_1.growth_param, "V_frac"]
         ),
         columns=["V1", "X1", "P1", "t_switch", "V2", "X2", "P2", "F2", "t_end"],
     )
@@ -196,7 +196,9 @@ def run_grid_search(stage_1, input_params):
     # up" until `V_max` with a constant feed rate and calculate productivity based on
     # the end time
     for growth_val in growth_val_range:
-        df_s1 = stage_1.evaluate_at_V(V=V_interval_range, **{growth_param: growth_val})
+        df_s1 = stage_1.evaluate_at_V(
+            V=V_interval_range, **{stage_1.growth_param: growth_val}
+        )
         df_s1["V_frac"] = V_frac_range
         for t_switch, row_s1 in df_s1.iterrows():
             stage_2 = NoGrowthS2(
@@ -204,7 +206,7 @@ def run_grid_search(stage_1, input_params):
                 s_f=input_params["common"]["s_f"],
                 **input_params["s2"],
             )
-            row_s2 = stage_2.evaluate_at_V(input_params["common"]["V_max"]).squeeze()
+            row_s2 = stage_2.evaluate_at_V(V_max).squeeze()
             # get constant feed rate in stage 2 and the end time
             F2 = stage_2.F
             t_end = row_s2.name + t_switch
@@ -232,20 +234,24 @@ def run_grid_search(stage_1, input_params):
 
     # if exponential, add substrate start volume; if constant, add mu in first instance
     # of feed (as this will be the largest mu encountered in the feed phase)
-    if growth_param == "mu":
+    if isinstance(stage_1, ExpS1):
         # exponential feed --> add substrate start volume and initial feed rate for each
         # `mu` to the results
-        for mu, _ in df_comb.groupby("mu"):
-            ssv = stage_1.substrate_start_volume(mu)
-            df_comb.loc[(mu, slice(None)), "substrate_start_volume"] = ssv
-            df_comb.loc[(mu, slice(None)), "F0"] = ssv / mu
-    elif growth_param == "F":
+        for mu, df in df_comb.groupby("mu"):
+            df_comb.loc[(mu, slice(None)), "substrate_start_volume"] = (
+                stage_1.substrate_start_volume(mu=mu)
+            )
+            df_comb.loc[(mu, slice(None)), "F0"] = stage_1.F0(mu=mu)
+            df_comb.loc[(mu, slice(None)), "F_end"] = stage_1.dV(
+                mu=mu, t=df["t_switch"].iloc[-1]
+            ).max()
+    elif isinstance(stage_1, ConstS1):
         # constant feed --> add maximum growth rate (at first instance of feed)
         for F, _ in df_comb.groupby("F"):
             df_comb.loc[(F, slice(None)), "mu_max"] = (
                 stage_1.calculate_initial_mu_from_F(F)
             )
-    elif growth_param == "G":
+    elif isinstance(stage_1, LinS1):
         # linear feed with constant absolute growth --> add maximum specific growth rate
         # and feed rate
         for G, df in df_comb.groupby("G"):
@@ -255,7 +261,7 @@ def run_grid_search(stage_1, input_params):
             df_comb.loc[(G, slice(None)), "mu_max"] = (
                 stage_1.calculate_initial_mu_from_F(F0)
             )
-            df_comb.loc[(G, slice(None)), "F_max"] = stage_1.dV(
+            df_comb.loc[(G, slice(None)), "F_end"] = stage_1.dV(
                 G=G, t=df["t_switch"].iloc[-1]
             )
     return df_comb.round(ROUND_DIGITS)
@@ -812,7 +818,7 @@ def populate_defaults_button():
                 choices={k: ui.HTML(v["title"]) for k, v in params.defaults.items()},
                 selected="",
                 inline=True,
-                width="100%",  # Add this to ensure full width
+                width="100%",
             ),
             ui.tags.style(
                 # add style to center the radio buttons

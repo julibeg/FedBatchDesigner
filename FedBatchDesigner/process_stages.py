@@ -33,6 +33,10 @@ class FedBatchStage(abc.ABC):
         # these expressions are handy for some calculations
         self.alpha = 1 / (1 + pi_1 * Y_XS / Y_PS)
         self.beta = pi_0 * Y_XS / Y_PS + rho * Y_XS / Y_AS
+        # calculate the smallest possible constant feed rate (with any feed rate smaller
+        # than this, not enough glucose for maintenance and product formation would be
+        # added in the first instance of the batch)
+        self.F0_min = self.initial_glc_for_rho_and_pi_0 / self.s_f
 
     @abc.abstractmethod
     def evaluate_at_V(self, V, **kwargs):
@@ -45,18 +49,12 @@ class FedBatchStage(abc.ABC):
 
 # define mixin classes to add some functionality to exponential vs constant feed stages
 class ConstantFeed:
-    def dV(self, F, t):
-        return F
-
     @property
     def F_min(self):
-        """
-        Calculate the smallest possible constant feed rate.
+        return self.F0_min
 
-        With any feed rate smaller than this, not enough glucose for maintenance and
-        product formation would be added in the first instance of the batch.
-        """
-        return self.initial_glc_for_rho_and_pi_0 / self.s_f
+    def dV(self, F, t):
+        return F
 
     def calculate_initial_mu_from_F(self, F):
         """Calculate the specific growth rate at the first instance of constant feed."""
@@ -104,10 +102,19 @@ class LinearFeed(ConstantFeed):
     def dV(self, dF, F0, t):
         return dF * t + F0
 
+
+class LinearFeedConstantGrowth(LinearFeed):
+    """
+    Linear feed profile with `F0` and `dF` chosen such that the absolute growth rate is
+    constant (e.g. 2 g/h) throughout the whole feed phase.
+    """
+
+    def dV(self, G, t):
+        F0, dF = self.F0_and_dF_for_constant_growth(G)
+        return super().dV(t=t, dF=dF, F0=F0)
+
     def F0_for_constant_growth(self, dF):
-        """
-        This is the initial feed rate that ensures biomass growth is constant.
-        """
+        """This is the initial feed rate that ensures biomass growth is constant."""
         return self.X0 * self.beta / self.s_f / self.Y_XS + dF / self.alpha / self.beta
 
     def F0_and_dF_for_constant_growth(self, G):
@@ -132,31 +139,99 @@ class LinearFeed(ConstantFeed):
         )
         return F0, dF
 
+    def get_G_max_from_F_max(self, V_end, F_max):
+        """
+        Calculate the maximum constant growth rate that doesn't exceed `F_max` at the
+        end of the feed (at `V=V_end`).
+        """
+        # extract attributes for conciceness in the long formula below
+        Y_AS = self.Y_AS
+        Y_PS = self.Y_PS
+        Y_XS = self.Y_XS
+        rho = self.rho
+        pi_0 = self.pi_0
+        pi_1 = self.pi_1
+        alpha = self.alpha
+        beta = self.beta
+        s_f = self.s_f
+        V0 = self.V0
+        X0 = self.X0
+
+        # define a few commonly used expressions
+        term_1 = Y_XS * alpha**2 * beta**2 * s_f
+        term_2 = X0 * alpha * beta**2
+        term_3 = Y_PS**2 + 2 * Y_PS * Y_XS * pi_1 + Y_XS**2 * pi_1**2
+        term_4 = Y_AS * Y_PS * alpha * beta * s_f
+
+        return (
+            Y_AS
+            * Y_PS
+            * np.sqrt(Y_XS)
+            * np.sqrt(s_f)
+            * (Y_PS + Y_XS * pi_1) ** 2
+            * np.sqrt(
+                F_max**2 * Y_XS * s_f
+                + V0**2 * term_1
+                - 2 * V0 * V_end * term_1
+                - 2 * V0 * term_2
+                + V_end**2 * term_1
+                + 2 * V_end * term_2
+            )
+            - Y_XS
+            * term_3
+            * (-V0 * term_4 + V_end * term_4 + X0 * Y_AS * pi_0 + X0 * Y_PS * rho)
+        ) / (Y_AS * (Y_PS + Y_XS * pi_1) * term_3)
+
 
 class ExponentialFeed:
     def dV(self, mu, t):
-        return self.substrate_start_volume(mu) * mu * np.exp(mu * t)
+        return self.F0(mu) * np.exp(mu * t)
 
     def substrate_start_volume(self, mu):
-        return (
-            self.X0
-            / (self.s_f * mu)
-            * (
-                mu / self.Y_XS
-                + self.rho / self.Y_AS
-                + (self.pi_0 + mu * self.pi_1) / self.Y_PS
-            )
-        )
+        if np.isclose(mu, 0):
+            return np.inf
+        return self.F0(mu) / mu
 
-    def phi_0(self, mu):
-        # this `phi_0` is the feed rate that satisfies `dX / dt = X * mu` in the first
-        # instance of the fed-batch
-        return self.substrate_start_volume(mu) * mu
+    def F0(self, mu):
+        """
+        Caclulate the feed rate that satisfies `dX / dt = X * mu` in the first instance
+        of the fed-batch. This is the same as the product of the substrate start volume
+        and mu.
+        """
+        return self.X0 / (self.s_f * self.Y_XS) * (mu / self.alpha + self.beta)
+
+    def calculate_mu_for_F_max(self, F_max, V_end):
+        """
+        Determine the specific growth rate `mu` that ensures that the feed rate never
+        exceeds `F_max` (i.e. it makes sure that `F = F_max` at `V=V_end`).
+        """
+        if V_end <= self.V0:
+            raise ValueError(
+                f"`V_end` ({V_end}) must be greater than `V0` ({self.V0})."
+            )
+        if F_max <= self.F0_min:
+            raise ValueError(f"`F_max` ({F_max}) must be positive.")
+
+        # put parameters into some variables for convenience
+        term = self.X0 / (self.s_f * self.Y_XS * self.alpha)
+        numerator = F_max - term * self.beta * self.alpha
+        denominator = term + V_end - self.V0
+
+        # make sure numerator and denominator are both positive
+        if denominator <= 0 or numerator <= 0:
+            raise ValueError(
+                "Calculation resulted in zero or negative denominator or numerator. "
+                "Looks like problem is ill-defined."
+            )
+
+        mu = numerator / denominator
+
+        return mu
 
 
 class LogisticFeed(ExponentialFeed):
-    def dV(self, phi_inf, mu, t):
-        return phi_inf / (1 + np.exp(-mu * t) * (phi_inf / self.phi_0(mu) - 1))
+    def dV(self, F_inf, mu, t):
+        return F_inf / (1 + np.exp(-mu * t) * (F_inf / self.F0(mu) - 1))
 
 
 class NoGrowthConstantStage(FedBatchStage, ConstantFeed):
@@ -353,6 +428,13 @@ class ConstantStageIntegrate(FedBatchStageIntegrate, ConstantFeed):
         return ConstantFeed.dV(self, *args, **kwargs)
 
 
+class LinearStageConstantGrowthIntegrate(
+    FedBatchStageIntegrate, LinearFeedConstantGrowth
+):
+    def dV(self, *args, **kwargs):
+        return LinearFeedConstantGrowth.dV(self, *args, **kwargs)
+
+
 class LinearStageIntegrate(FedBatchStageIntegrate, LinearFeed):
     def dV(self, *args, **kwargs):
         return LinearFeed.dV(self, *args, **kwargs)
@@ -434,16 +516,16 @@ class ExponentialStageAnalytical(FedBatchStageAnalytical, ExponentialFeed):
         Evaluate a couple expressions that come up multiple times in the equations for
         the exponential and logistic case.
         """
-        expr_1 = self.phi_0(mu) * self.s_f * self.Y_XS * self.alpha
+        expr_1 = self.F0(mu) * self.s_f * self.Y_XS * self.alpha
         expr_2 = self.alpha * self.beta + mu
         return expr_1, expr_2
 
     def t_until_V(self, V, mu):
         if V < self.V0:
             raise ValueError(f"`V` needs to be larger than `V0` (V0={self.V0}).")
-        phi_0 = self.phi_0(mu)
+        F0 = self.F0(mu)
         V_rest = V - self.V0
-        return np.log(V_rest * mu / phi_0 + 1) / mu
+        return np.log(V_rest * mu / F0 + 1) / mu
 
     def evaluate_at_t(self, t, mu):
         if not util.is_iterable(t):
@@ -451,8 +533,8 @@ class ExponentialStageAnalytical(FedBatchStageAnalytical, ExponentialFeed):
         # make sure we got an array
         t = np.asarray(t)
 
-        phi_0 = self.phi_0(mu)
-        V = self.V0 + (np.exp(mu * t) - 1) * phi_0 / mu
+        F0 = self.F0(mu)
+        V = self.V0 + (np.exp(mu * t) - 1) * F0 / mu
         # define a few commonly used expressions for sake of conciseness below
         expr_1, expr_2 = self.common_expressions(mu)
         X = (
@@ -486,72 +568,70 @@ class ExponentialStageAnalytical(FedBatchStageAnalytical, ExponentialFeed):
 
 
 class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
-    def t_until_V(self, V, mu, phi_inf):
+    def t_until_V(self, V, mu, F_inf):
         if V < self.V0:
             raise ValueError(f"`V` needs to be larger than `V0` (V0={self.V0}).")
-        phi_0 = self.phi_0(mu)
+        F0 = self.F0(mu)
         t = (
             np.log(
                 (
-                    phi_0
-                    - phi_inf
-                    + np.exp(
-                        (V * mu - self.V0 * mu + np.log(phi_inf**phi_inf)) / phi_inf
-                    )
+                    F0
+                    - F_inf
+                    + np.exp((V * mu - self.V0 * mu + np.log(F_inf**F_inf)) / F_inf)
                 )
-                / phi_0
+                / F0
             )
             / mu
         )
         return t
 
-    def get_V(self, phi_inf, mu, t):
-        phi_0 = self.phi_0(mu)
+    def get_V(self, F_inf, mu, t):
+        F0 = self.F0(mu)
         V = (
-            phi_inf * np.log(phi_0 * (np.exp(mu * t) - 1) + phi_inf)
-            - phi_inf * np.log(phi_inf)
+            F_inf * np.log(F0 * (np.exp(mu * t) - 1) + F_inf)
+            - F_inf * np.log(F_inf)
             + mu * self.V0
         ) / mu
         return V
 
-    def get_X(self, phi_inf, mu, t):
-        phi_0 = self.phi_0(mu)
+    def get_X(self, F_inf, mu, t):
+        F0 = self.F0(mu)
         # define some common terms
         exp_mu_t = np.exp(mu * t)
         exp_alpha_beta_t = np.exp(self.alpha * self.beta * t)
         exp_alpha_beta_neg_t = np.exp(-self.alpha * self.beta * t)
-        delta_F = phi_0 - phi_inf
+        delta_F = F0 - F_inf
         hyp_term_1 = scipy.special.hyp2f1(
             1,
             self.alpha * self.beta / mu + 1,
             self.alpha * self.beta / mu + 2,
-            (exp_mu_t * phi_0) / delta_F,
+            (exp_mu_t * F0) / delta_F,
         )
         hyp_term_2 = scipy.special.hyp2f1(
             1,
             self.alpha * self.beta / mu + 1,
             self.alpha * self.beta / mu + 2,
-            phi_0 / delta_F,
+            F0 / delta_F,
         )
 
         # define a few commonly used expressions for sake of conciseness below
         expr_1, expr_2 = self.common_expressions(mu)
 
         numerator = exp_alpha_beta_neg_t * (
-            expr_1 * phi_inf * exp_alpha_beta_t * exp_mu_t * hyp_term_1
-            - expr_1 * phi_inf * hyp_term_2
-            - self.alpha * self.beta * phi_0 * self.X0
-            - phi_0 * mu * self.X0
-            + self.alpha * self.beta * phi_inf * self.X0
-            + phi_inf * mu * self.X0
+            expr_1 * F_inf * exp_alpha_beta_t * exp_mu_t * hyp_term_1
+            - expr_1 * F_inf * hyp_term_2
+            - self.alpha * self.beta * F0 * self.X0
+            - F0 * mu * self.X0
+            + self.alpha * self.beta * F_inf * self.X0
+            + F_inf * mu * self.X0
         )
 
         denominator = delta_F * expr_2
         result = -numerator / denominator
         return result
 
-    def get_P(self, phi_inf, mu, t):
-        phi_0 = self.phi_0(mu)
+    def get_P(self, F_inf, mu, t):
+        F0 = self.F0(mu)
         alpha = self.alpha
         beta = self.beta
         s_f = self.s_f
@@ -560,7 +640,7 @@ class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
         pi_1 = self.pi_1
 
         # define some common terms
-        delta_F = phi_0 - phi_inf
+        delta_F = F0 - F_inf
         exp_alpha_beta_neg_t = np.exp(-alpha * beta * t)
         exp_alpha_beta_t = np.exp(alpha * beta * t)
         exp_muf_t = np.exp(mu * t)
@@ -571,15 +651,15 @@ class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
             1,
             alpha * beta / mu + 1,
             alpha * beta / mu + 2,
-            (exp_muf_t * phi_0) / delta_F,
+            (exp_muf_t * F0) / delta_F,
         )
         hyp_term_2 = scipy.special.hyp2f1(
-            1, alpha * beta / mu + 1, alpha * beta / mu + 2, phi_0 / delta_F
+            1, alpha * beta / mu + 1, alpha * beta / mu + 2, F0 / delta_F
         )
 
         # logarithmic terms
-        log_term_1 = np.log(phi_0 * (exp_muf_t - 1) + phi_inf)
-        log_term_2 = np.log(phi_inf)
+        log_term_1 = np.log(F0 * (exp_muf_t - 1) + F_inf)
+        log_term_2 = np.log(F_inf)
 
         # define a commonly used expressions for sake of conciseness below
         expr_1, expr_2 = self.common_expressions(mu)
@@ -588,17 +668,17 @@ class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
         numerator_part1 = (
             -expr_1
             * mu
-            * phi_inf
+            * F_inf
             * (alpha * beta * pi_1 - pi_0)
             * exp_combined
             * hyp_term_1
-            + phi_inf * mu * expr_1 * (alpha * beta * pi_1 - pi_0) * hyp_term_2
+            + F_inf * mu * expr_1 * (alpha * beta * pi_1 - pi_0) * hyp_term_2
         )
 
         # numerator: second major term
         numerator_part2 = -(delta_F * (expr_2)) * (
-            -alpha * phi_inf * pi_0 * s_f * Y_XS * exp_alpha_beta_t * log_term_1
-            + alpha * phi_inf * pi_0 * s_f * Y_XS * log_term_2 * exp_alpha_beta_t
+            -alpha * F_inf * pi_0 * s_f * Y_XS * exp_alpha_beta_t * log_term_1
+            + alpha * F_inf * pi_0 * s_f * Y_XS * log_term_2 * exp_alpha_beta_t
             - mu * self.X0 * (exp_alpha_beta_t - 1) * (pi_0 - alpha * beta * pi_1)
         )
 
@@ -609,15 +689,15 @@ class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
         result = numerator / denominator
         return result
 
-    def evaluate_at_t(self, t, mu, phi_inf):
+    def evaluate_at_t(self, t, mu, F_inf):
         if not util.is_iterable(t):
             t = [t]
         # make sure we got an array
         t = np.asarray(t)
 
-        V = self.get_V(phi_inf, mu, t)
-        X = self.get_X(phi_inf, mu, t)
-        P = self.get_P(phi_inf, mu, t)
+        V = self.get_V(F_inf, mu, t)
+        X = self.get_X(F_inf, mu, t)
+        P = self.get_P(F_inf, mu, t)
         df = pd.DataFrame({"V": V, "X": X, "P": P}, index=t)
         df.index.name = "t"
         return df
@@ -674,16 +754,9 @@ class LinearStageAnalytical(FedBatchStageAnalytical, LinearFeed):
         return df
 
 
-class LinearStageConstantGrowthAnalytical(LinearStageAnalytical):
-    """
-    Linear feed with specific `F0` and `dF` that is chosen such that the absolute growth
-    rate is constant (e.g. 2 g/h).
-    """
-
-    def dV(self, t, G):
-        F0, dF = self.F0_and_dF_for_constant_growth(G)
-        return super().dV(t=t, dF=dF, F0=F0)
-
+class LinearStageConstantGrowthAnalytical(
+    LinearStageAnalytical, LinearFeedConstantGrowth
+):
     def evaluate_at_t(self, t, G):
         F0, dF = self.F0_and_dF_for_constant_growth(G)
         return super().evaluate_at_t(t, dF=dF, F0=F0)
@@ -691,67 +764,3 @@ class LinearStageConstantGrowthAnalytical(LinearStageAnalytical):
     def t_until_V(self, V, G):
         F0, dF = self.F0_and_dF_for_constant_growth(G)
         return super().t_until_V(V, dF=dF, F0=F0)
-
-    def get_G_max_from_F_max(self, V_end, F_max):
-        """
-        Calculate the maximum constant growth rate that doesn't exceed `F_max` at the
-        end of the feed (at `V=V_end`).
-        """
-        # extract attributes for conciceness in the long formula below
-        Y_AS = self.Y_AS
-        Y_PS = self.Y_PS
-        Y_XS = self.Y_XS
-        rho = self.rho
-        pi_0 = self.pi_0
-        pi_1 = self.pi_1
-        alpha = self.alpha
-        beta = self.beta
-        s_f = self.s_f
-        V0 = self.V0
-        X0 = self.X0
-
-        # define a few commonly used expressions
-        term_1 = Y_XS * alpha**2 * beta**2 * s_f
-        term_2 = X0 * alpha * beta**2
-        term_3 = Y_PS**2 + 2 * Y_PS * Y_XS * pi_1 + Y_XS**2 * pi_1**2
-        term_4 = Y_AS * Y_PS * alpha * beta * s_f
-
-        return (
-            Y_AS
-            * Y_PS
-            * np.sqrt(Y_XS)
-            * np.sqrt(s_f)
-            * (Y_PS + Y_XS * pi_1) ** 2
-            * np.sqrt(
-                F_max**2 * Y_XS * s_f
-                + V0**2 * term_1
-                - 2 * V0 * V_end * term_1
-                - 2 * V0 * term_2
-                + V_end**2 * term_1
-                + 2 * V_end * term_2
-            )
-            - Y_XS
-            * term_3
-            * (-V0 * term_4 + V_end * term_4 + X0 * Y_AS * pi_0 + X0 * Y_PS * rho)
-        ) / (Y_AS * (Y_PS + Y_XS * pi_1) * term_3)
-
-    def _get_G_max_from_F_max_newton(self, V_end, F_max):
-        """
-        NOTE: This is only here for reference (use the analytical solution below).
-
-        Uses Newton's method to determine the maximum constant growth rate that doesn't
-        exceed `F_max` at the end of the feed (at `V=V_end`).
-        """
-
-        def diff_to_F_max(G):
-            """
-            Get the difference between `F_max` and the feed rate corresponding to `G` at
-            `V=V_end`.
-            """
-            G_F0, G_dF = self.F0_and_dF_for_constant_growth(G)
-            t_end = self.t_until_V(V_end, G_dF, G_F0)
-            F_end = G_F0 + t_end * G_dF
-            return F_end - F_max
-
-        G_max = scipy.optimize.newton(func=diff_to_F_max, x0=0, disp=True)
-        return G_max

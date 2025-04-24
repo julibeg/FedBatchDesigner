@@ -125,11 +125,6 @@ results = {
         "/h",
         """The largest specific growth rate encountered during the feed phase""",
     ),
-    "F_max": ResultParam(
-        "Maximum feed rate",
-        "L/h",
-        "The largest feed rate encountered during the feed phase",
-    ),
     "F": ResultParam(
         "Feed rate first stage",
         "L/h",
@@ -151,6 +146,11 @@ results = {
         "Feed rate change",
         "(L/h)/h",
         "Change of feed rate per hour (for linear feed)",
+    ),
+    "F_end": ResultParam(
+        "Final feed rate",
+        "L/h",
+        "The feed rate at the end of the feed phase",
     ),
     "V_frac": ResultParam(
         "Fraction of feed volume in first stage",
@@ -299,7 +299,7 @@ defaults_case_study_valine_one_stage = defaults_E_coli | {
     "x_batch": 6.7,  # g/L
     "V_max": 4.17,  # L
     "mu_max": 0.3,  # /h (reasonable value for E. coli exponential feed)
-    "F_max": 0.04,  # L/h (slightly higher than the 0.03 L/h used in the paper)
+    "F_max": 0.5,  # L/h (reasonable value for this scale)
     "s_f": 800,  # g glc / L (from paper & confirmed in correspondence with authors)
     "s1_Y_PS": 0.65,  # g product / g glc (theoretical maximum)
     "s1_pi_0": 0.073,  # g product / (g CDM h)

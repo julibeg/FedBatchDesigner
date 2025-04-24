@@ -48,7 +48,6 @@ def get_range_with_at_least_N_nice_values(
     min_val,
     max_val,
     min_n_values,
-    round=False,
     always_include_min=False,
     always_include_max=False,
 ):
@@ -60,8 +59,6 @@ def get_range_with_at_least_N_nice_values(
         vals = nice_value_range(min_val, max_val, step)
         if len(vals) >= min_n_values:
             break
-    if round:
-        vals = np.round(vals, ROUND_DIGITS)
     # if no range with at least `min_n_values` values was found, the for loop finished
     # and we return the range with the smallest steps
     if always_include_min:
