@@ -829,6 +829,7 @@ def populate_defaults_button():
                 "apply_default",
                 "Apply selected defaults",
                 disabled=True,
+                class_="btn btn-secondary",
             ),
             style="display: flex; justify-content: center; align-items: center;",
         ),
