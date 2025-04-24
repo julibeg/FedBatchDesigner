@@ -130,7 +130,7 @@ def run_grid_search(stage_1, input_params):
     user parameters.
     """
 
-    mu_max = input_params["common"]["mu_max"]
+    mu_max_phys = input_params["s1"]["mu_max_phys"]
     F_max = input_params["common"]["F_max"]
     V_max = input_params["common"]["V_max"]
 
@@ -142,11 +142,11 @@ def run_grid_search(stage_1, input_params):
             F_max=F_max,
             V_end=V_max,
         )
-        mu_max = min(mu_max, mu_max_F_max)
-        mu_min = mu_max * MU_MIN_FACTOR
+        mu_max_exp_feed = min(input_params["common"]["mu_max_feed"], mu_max_F_max)
+        mu_min = mu_max_exp_feed * MU_MIN_FACTOR
         growth_val_range = util.get_range_with_at_least_N_nice_values(
             min_val=mu_min,
-            max_val=mu_max,
+            max_val=mu_max_exp_feed,
             min_n_values=N_MINIMUM_LEVELS_FOR_GROWTH_PARAM,
             always_include_max=True,
         )
@@ -155,7 +155,7 @@ def run_grid_search(stage_1, input_params):
         # 0 g/h to `G_max`, where `G_max` is such that neither `mu_max` nor `F_max`
         # are exceeded. For a constant absolute growth rate (e.g. 2 g/h) `mu` is
         # largest at `t=0` and `F` is largest at the end of the feed phase
-        G_max_mu = stage_1.X0 * mu_max
+        G_max_mu = stage_1.X0 * mu_max_phys
         G_max_F = stage_1.get_G_max_from_F_max(V_max, F_max)
         # get a range of values of the constant absolute growth rate and round to
         # avoid floating point issues
@@ -165,7 +165,7 @@ def run_grid_search(stage_1, input_params):
             min_n_values=N_MINIMUM_LEVELS_FOR_GROWTH_PARAM,
         )
     elif isinstance(stage_1, ConstS1):
-        F_max_mu_max = stage_1.calculate_F_from_initial_mu(mu_max)
+        F_max_mu_max = stage_1.calculate_F_from_initial_mu(mu_max_phys)
         growth_val_range = util.get_range_with_at_least_N_nice_values(
             min_val=stage_1.F_min,
             max_val=min(F_max, F_max_mu_max),
@@ -713,13 +713,13 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                         f"""
                         {params.feed["V_max"].label} - {params.batch["V_batch"].label}
                         is the volume of medium added during the feed phase. Specific
-                        growth rates up to {params.feed["mu_max"].label} are considered
-                        when optimizing the the exponential feed and feed rates up to
-                        {params.feed["F_max"].label} are considered when optimizing the
-                        constant feed. For linear feed it is made sure that the specific
-                        growth rate never exceeds {params.feed["mu_max"].label} and that
-                        the feed rate is always smaller than
-                        {params.feed["F_max"].label}.
+                        growth rates up to {params.feed["mu_max_feed"].label} are
+                        considered when optimizing the the exponential feed and feed
+                        rates up to {params.feed["F_max"].label} are considered when
+                        optimizing the constant feed. For linear feed it is made sure
+                        that the specific growth rate never exceeds
+                        {params.feed["mu_max_feed"].label} and that the feed rate is
+                        always smaller than {params.feed["F_max"].label}.
                         """
                     )
                     with ui.layout_column_wrap(width=1 / 2):
@@ -747,21 +747,36 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                     ):
                         for stage_idx in [1, 2]:
                             with ui.nav_panel(f"Stage {stage_idx}"):
-                                ui.tags.p(
-                                    """
-                                    These parameters (yield coefficients and specific
-                                    ATP consumption and product formation rates) can
-                                    change between the two stages and make up the
-                                    specific substrate consumption rate according to
-                                    """
-                                )
-                                ui.tags.p(
-                                    r""" \(
-                                    \sigma = \frac{\mu}{Y_{X/S}} + \frac{\pi_0 + \mu
-                                    \pi_1}{Y_{P/S}} + \frac{\rho}{Y_{ATP/S}}
-                                    \) """,
-                                    style="text-align: center; font-size: 130%;",
-                                )
+                                with ui.layout_columns(col_widths=(8, 4)):
+                                    with ui.div():
+                                        ui.tags.p(
+                                            """
+                                            These parameters (yield coefficients and
+                                            specific ATP consumption and product
+                                            formation rates) can change between the two
+                                            stages and make up the specific substrate
+                                            consumption rate according to
+                                            """
+                                        )
+                                        ui.tags.p(
+                                            r""" \(
+                                            \sigma = \frac{\mu}{Y_{X/S}} + \frac{\pi_0 +
+                                            \mu \pi_1}{Y_{P/S}} + \frac{\rho}{Y_{ATP/S}}
+                                            \) """,
+                                            style=(
+                                                "text-align: center; font-size: 130%;"
+                                            ),
+                                        )
+                                    # with ui.div(style="text-align: center;"):
+                                    with ui.div():
+                                        with ui.card():
+                                            # put `mu_max_phys` on its own and group the
+                                            # yields and rates
+                                            k = "mu_max_phys"
+                                            ui.input_text(
+                                                id=f"s{stage_idx}_{k}",
+                                                label=str(params.stage_specific[k]),
+                                            )
                                 with ui.card():
                                     ui.card_header("Yield coefficients")
                                     with ui.layout_column_wrap(width=1 / 3):
@@ -980,8 +995,43 @@ def validate_V_max(value):
         return "'V_max' must be larger than 'V_batch'"
 
 
+def validate_mu_max_feed(value):
+    # we still need to call `validate_param()` since `InputValidator` only keeps track
+    # of the last validation rule (i.e. `validate_param` added as rule above is
+    # overwritten)
+    msg = validate_param(value, True)
+    if msg is not None:
+        return msg
+    try:
+        # only compare with `s1_mu_max_phys` if it has already been provided
+        mu_max_phys = float(input["s1_mu_max_phys"]())
+    except ValueError:
+        return
+    if float(value) > mu_max_phys:
+        return "cannot be larger than the physiological µ_max of the organism"
+
+
+def validate_mu_max_phys(value):
+    # we still need to call `validate_param()` since `InputValidator` only keeps track
+    # of the last validation rule (i.e. `validate_param` added as rule above is
+    # overwritten)
+    msg = validate_param(value, True)
+    if msg is not None:
+        return msg
+    try:
+        # only compare with `mu_max_feed` if it has already been provided
+        mu_max_feed = float(input["mu_max_feed"]())
+    except ValueError:
+        return
+    if float(value) <= mu_max_feed:
+        return "must be at least as big as the maximum growth rate of the feed"
+
+
 input_validator.add_rule("V_batch", validate_V_batch)
 input_validator.add_rule("V_max", validate_V_max)
+input_validator.add_rule("mu_max_feed", validate_mu_max_feed)
+input_validator.add_rule("s1_mu_max_phys", validate_mu_max_phys)
+input_validator.add_rule("s2_mu_max_phys", validate_mu_max_phys)
 
 
 @reactive.effect

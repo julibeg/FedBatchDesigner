@@ -16,7 +16,21 @@ class NotEnoughGlucoseError(Exception):
 
 
 class FedBatchStage(abc.ABC):
-    def __init__(self, V0, X0, P0, s_f, Y_AS, Y_PS, Y_XS, rho, pi_0, pi_1, debug=False):
+    def __init__(
+        self,
+        V0,
+        X0,
+        P0,
+        s_f,
+        Y_AS,
+        Y_PS,
+        Y_XS,
+        rho,
+        pi_0,
+        pi_1,
+        mu_max_phys,
+        debug=False,
+    ):
         self.V0 = V0
         self.X0 = X0
         self.P0 = P0
@@ -27,6 +41,7 @@ class FedBatchStage(abc.ABC):
         self.Y_XS = Y_XS
         self.pi_0 = pi_0
         self.pi_1 = pi_1
+        self.mu_max_phys = mu_max_phys
         self.debug = debug
         # calculate glucose required for maintenance and product formation at t=0
         self.initial_glc_for_rho_and_pi_0 = X0 * (rho / Y_AS + pi_0 / Y_PS)
@@ -278,8 +293,8 @@ class FedBatchStageIntegrate(FedBatchStage):
     concentration profiles etc.
     """
 
-    # define the maximum time to integrate; this should never be reached as we terminate the
-    # integration when a condition is met
+    # define the maximum time to integrate; this should never be reached as we terminate
+    # the integration when a condition is met
     t_max = 1e5
 
     @abc.abstractmethod

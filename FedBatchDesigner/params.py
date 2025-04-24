@@ -50,10 +50,10 @@ feed = {
         "g glc / L",
         "Substrate concentration in the feed",
     ),
-    "mu_max": InputParam(
-        "\(\mu_\\textrm{max}\)",
+    "mu_max_feed": InputParam(
+        "\(\mu_\\textrm{max}^{F,\\textrm{exp}}\)",
         "/h",
-        "Maximum specific growth rate to consider during optimization",
+        "Maximum specific growth rate to consider when optimizing exponential feed",
     ),
     "F_max": InputParam(
         "\(F_\\textrm{max}\)",
@@ -103,7 +103,15 @@ rates = {
     ),
 }
 
-stage_specific = {**yields, **rates}
+stage_specific = {
+    **yields,
+    **rates,
+    "mu_max_phys": InputParam(
+        "\(\mu_\\textrm{max}^\\textrm{phys}\)",
+        "/h",
+        "Maximum specific growth rate (physiological)",
+    ),
+}
 
 results = {
     "mu": ResultParam(
@@ -269,6 +277,7 @@ defaults_E_coli = {
     "s1_Y_XS": 98 / 180,  # g CDM / g glc
     "s1_Y_AS": 23.5 * 507 / 180,  # g ATP / g glc (23.5 mol ATP / mol glc)
     "s1_rho": 7.7e-3 * 507,  # g ATP / (g CDM h)
+    "s1_mu_max_phys": 0.6,  # /h (approximate value for E. coli on common minimal media)
 }
 
 # physiological parameters for S. cerevisiae taken from Vos et al. (2016)
@@ -289,7 +298,7 @@ defaults_case_study_valine_one_stage = defaults_E_coli | {
     "V_batch": 3,  # L (from paper)
     "x_batch": 6.7,  # g/L
     "V_max": 4.17,  # L
-    "mu_max": 0.3,  # /h (reasonable value for E. coli exponential feed)
+    "mu_max_feed": 0.3,  # /h (reasonable value for E. coli exponential feed)
     "F_max": 0.5,  # L/h (reasonable value for this scale)
     "s_f": 800,  # g glc / L (from paper & confirmed in correspondence with authors)
     "s1_Y_PS": 0.65,  # g product / g glc (theoretical maximum)
@@ -324,8 +333,8 @@ defaults = {
     "s_cerevisiae": {
         "title": "<i>S. cerevisiae</i> (aerobic)",
         "description": """
-            Physiological parameters for <i>Saccharomyces cerevisiae</i> (biomass yield, ATP
-            yield, maintenance factor) taken from <a
+            Physiological parameters for <i>Saccharomyces cerevisiae</i> (biomass yield,
+            ATP yield, maintenance factor) taken from <a
             href="https://doi.org/10.1186/s12934-016-0501-z">Vos et al. (2016)</a>.
             """,
         "values": defaults_S_cerevisiae,
