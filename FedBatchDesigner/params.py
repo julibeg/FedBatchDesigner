@@ -47,7 +47,7 @@ feed = {
     ),
     "s_f": InputParam(
         "\(s_f\)",
-        "g glc / L",
+        "g / L",
         "Substrate concentration in the feed",
     ),
     "mu_max_feed": InputParam(
@@ -67,21 +67,21 @@ common = {**batch, **feed}
 yields = {
     "Y_XS": InputParam(
         "\(Y_{X/S}\)",
-        "g CDM / g glc",
+        "g CDM / g substrate",
         (
             "Biomass yield coefficient "
-            "(grams biomass produced per gram of glucose consumed)"
+            "(grams biomass produced per gram of substrate consumed)"
         ),
     ),
     "Y_PS": InputParam(
         "\(Y_{P/S}\)",
-        "g product / g glc",
-        "Product yield coefficient (grams product formed per gram of glucose consumed)",
+        "g product / g substrate",
+        "Product yield coefficient (grams product formed per gram of substrate consumed)",
     ),
     "Y_AS": InputParam(
         "\(Y_{ATP/S}\)",
-        "g ATP / g glc",
-        "ATP yield coefficient (grams ATP generated per gram of glucose consumed)",
+        "g ATP / g substrate",
+        "ATP yield coefficient (grams ATP generated per gram of substrate consumed)",
     ),
 }
 

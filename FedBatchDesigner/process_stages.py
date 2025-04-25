@@ -11,7 +11,7 @@ import util
 MAX_INTEGRATION_STEP = 1
 
 
-class NotEnoughGlucoseError(Exception):
+class NotEnoughSubstrateError(Exception):
     pass
 
 
@@ -43,15 +43,15 @@ class FedBatchStage(abc.ABC):
         self.pi_1 = pi_1
         self.mu_max_phys = mu_max_phys
         self.debug = debug
-        # calculate glucose required for maintenance and product formation at t=0
-        self.initial_glc_for_rho_and_pi_0 = X0 * (rho / Y_AS + pi_0 / Y_PS)
+        # calculate substrate required for maintenance and product formation at t=0
+        self.initial_substrate_for_rho_and_pi_0 = X0 * (rho / Y_AS + pi_0 / Y_PS)
         # these expressions are handy for some calculations
         self.alpha = 1 / (1 + pi_1 * Y_XS / Y_PS)
         self.beta = pi_0 * Y_XS / Y_PS + rho * Y_XS / Y_AS
         # calculate the smallest possible constant feed rate (with any feed rate smaller
-        # than this, not enough glucose for maintenance and product formation would be
+        # than this, not enough substrate for maintenance and product formation would be
         # added in the first instance of the batch)
-        self.F0_min = self.initial_glc_for_rho_and_pi_0 / self.s_f
+        self.F0_min = self.initial_substrate_for_rho_and_pi_0 / self.s_f
 
     @abc.abstractmethod
     def evaluate_at_V(self, V, **kwargs):
@@ -259,7 +259,7 @@ class NoGrowthConstantStage(FedBatchStage, ConstantFeed):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.F = self.initial_glc_for_rho_and_pi_0 / self.s_f
+        self.F = self.initial_substrate_for_rho_and_pi_0 / self.s_f
         self.dP = self.X0 * self.pi_0
 
     def evaluate_at_t(self, t):
@@ -318,47 +318,48 @@ class FedBatchStageIntegrate(FedBatchStage):
             if self.debug:
                 debug_df.loc[t] = [V, X, P]
 
-            # get dV and the amount of glucose thus added
+            # get dV and the amount of substrate thus added
             dV = self.dV(t=t, **dV_kwargs)
-            glc_add = dV * self.s_f
+            substr_add = dV * self.s_f
 
-            # get glucose needed for maintenance and for non-growth-dependent production
-            glc_mnt = X * self.rho / self.Y_AS
+            # get substrate needed for maintenance and for non-growth-dependent
+            # production
+            substr_mnt = X * self.rho / self.Y_AS
             dP_pi_0 = X * self.pi_0
-            glc_P_pi_0 = dP_pi_0 / self.Y_PS
+            substr_P_pi_0 = dP_pi_0 / self.Y_PS
 
-            # maintenance could require more glucose than was added; make sure to not
-            # have negative glucose in that case
-            if glc_add < glc_mnt:
-                # not enough glucose for maintenance
+            # maintenance could require more substrate than was added; make sure to not
+            # have negative substrate in that case
+            if substr_add < substr_mnt:
+                # not enough substrate for maintenance
                 if allow_not_enough_for_rho:
-                    glc = 0
+                    substr = 0
                 else:
-                    raise NotEnoughGlucoseError(
-                        "More glucose required by maintenance than was added.\n"
+                    raise NotEnoughSubstrateError(
+                        "More substrate required by maintenance than was added.\n"
                         f"{t=:.5g}, {V=:.5g}, {X=:.5g}, {P=:.5g}, "
-                        f"{glc_add=:.5g}, {glc_mnt=:.5g}"
+                        f"{substr_add=:.5g}, {substr_mnt=:.5g}"
                     )
             else:
-                # there's enough glucose for maintenance
-                glc = glc_add - glc_mnt
-            # make sure that there is enough glucose for product formation
-            if glc < glc_P_pi_0:
+                # there's enough substrate for maintenance
+                substr = substr_add - substr_mnt
+            # make sure that there is enough substrate for product formation
+            if substr < substr_P_pi_0:
                 if allow_not_enough_for_pi:
-                    # use all the remaining glucose for product formation (this will be
-                    # less than `X * pi_0`)
-                    dP_pi_0 = glc * self.Y_PS
-                    glc = 0
+                    # use all the remaining substrate for product formation (this will
+                    # be less than `X * pi_0`)
+                    dP_pi_0 = substr * self.Y_PS
+                    substr = 0
                 else:
-                    raise NotEnoughGlucoseError(
-                        "Product formation requires more glucose than was added.\n"
+                    raise NotEnoughSubstrateError(
+                        "Product formation requires more substrate than was added.\n"
                         f"{t=:.5g}, {V=:.5g}, {X=:.5g}, {P=:.5g}, "
-                        f"{glc=:.5g}, {glc_P_pi_0=:.5g}"
+                        f"{substr=:.5g}, {substr_P_pi_0=:.5g}"
                     )
             else:
-                glc -= glc_P_pi_0
-            # use the remaining glucose for growth and growth-coupled production
-            dX = glc / (1 / self.Y_XS + self.pi_1 / self.Y_PS)
+                substr -= substr_P_pi_0
+            # use the remaining substrate for growth and growth-coupled production
+            dX = substr / (1 / self.Y_XS + self.pi_1 / self.Y_PS)
             dP_pi_1 = dX * self.pi_1
             dP = dP_pi_0 + dP_pi_1
             return dV, dX, dP
@@ -420,7 +421,7 @@ class FedBatchStageIntegrate(FedBatchStage):
                 events=events,
                 max_step=MAX_INTEGRATION_STEP,
             )
-        except NotEnoughGlucoseError as e:
+        except NotEnoughSubstrateError as e:
             if self.debug:
                 logger.exception(e)
                 return debug_df
