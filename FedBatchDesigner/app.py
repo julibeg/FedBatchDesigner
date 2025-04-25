@@ -5,7 +5,7 @@ import time
 import numpy as np
 import pandas as pd
 from shiny import reactive
-from shiny.express import input, module, render, session as root_session, ui
+from shiny.express import expressify, input, module, render, session as root_session, ui
 from shiny_validate import InputValidator
 from shinywidgets import render_plotly
 
@@ -774,49 +774,68 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                                 ui.p(v.description)
 
                 # stage-specific parameters
+                @expressify
+                def non_mu_max_phys_content():
+                    with ui.div():
+                        ui.tags.p(
+                            """
+                            These parameters (yield coefficients and
+                            specific ATP consumption and product
+                            formation rates) can change between the two
+                            stages and make up the specific substrate
+                            consumption rate according to
+                            """
+                        )
+                        ui.tags.p(
+                            r""" \(
+                            \sigma = \frac{\mu}{Y_{X/S}} + \frac{\pi_0 +
+                            \mu \pi_1}{Y_{P/S}} + \frac{\rho}{Y_{ATP/S}}
+                            \) .""",
+                            style=("text-align: center; font-size: 130%;"),
+                        )
+                        ui.tags.p(
+                            """
+                            As there is no growth in the second stage, some of these are
+                            only available for the first stage.
+                            """
+                        )
+
+                @expressify
+                def mu_max_phys_input(stage_idx):
+                    with ui.card():
+                        # put `mu_max_phys` on its own and group the
+                        # yields and rates
+                        k = "mu_max_phys"
+                        v = params.stage_specific[k]
+                        with ui.div():
+                            ui.input_text(
+                                id=f"s{stage_idx}_{k}",
+                                label=str(v),
+                            )
+                            ui.tags.p(v.description)
+
                 with ui.card():
                     with ui.navset_bar(
                         title="Stage-specific parameters", navbar_options=NAVBAR_OPTIONS
                     ):
                         for stage_idx in [1, 2]:
                             with ui.nav_panel(f"Stage {stage_idx}"):
-                                with ui.layout_columns(col_widths=(8, 4)):
-                                    with ui.div():
-                                        ui.tags.p(
-                                            """
-                                            These parameters (yield coefficients and
-                                            specific ATP consumption and product
-                                            formation rates) can change between the two
-                                            stages and make up the specific substrate
-                                            consumption rate according to
-                                            """
-                                        )
-                                        ui.tags.p(
-                                            r""" \(
-                                            \sigma = \frac{\mu}{Y_{X/S}} + \frac{\pi_0 +
-                                            \mu \pi_1}{Y_{P/S}} + \frac{\rho}{Y_{ATP/S}}
-                                            \) """,
-                                            style=(
-                                                "text-align: center; font-size: 130%;"
-                                            ),
-                                        )
-                                    # with ui.div(style="text-align: center;"):
-                                    with ui.div():
-                                        with ui.card():
-                                            # put `mu_max_phys` on its own and group the
-                                            # yields and rates
-                                            k = "mu_max_phys"
-                                            v = params.stage_specific[k]
-                                            with ui.div():
-                                                ui.input_text(
-                                                    id=f"s{stage_idx}_{k}",
-                                                    label=str(v),
-                                                )
-                                                ui.tags.p(v.description)
+                                if stage_idx == 1:
+                                    # `mu_max_phys` only makes sense for stage 1; skip
+                                    # it for stage 2
+                                    with ui.layout_columns(col_widths=(8, 4)):
+                                        non_mu_max_phys_content()
+                                        mu_max_phys_input(stage_idx)
+                                else:
+                                    non_mu_max_phys_content()
                                 with ui.card():
                                     ui.card_header("Yield coefficients")
-                                    with ui.layout_column_wrap(width=1 / 3):
+                                    with ui.layout_column_wrap(
+                                        width=1 / (3 if stage_idx == 1 else 2)
+                                    ):
                                         for k, v in params.yields.items():
+                                            if stage_idx == 2 and v.stage_1_only:
+                                                continue
                                             ui.input_text(
                                                 id=f"s{stage_idx}_{k}", label=str(v)
                                             )
@@ -828,8 +847,12 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                                     )
                                 with ui.card():
                                     ui.card_header("Specific rates")
-                                    with ui.layout_column_wrap(width=1 / 3):
+                                    with ui.layout_column_wrap(
+                                        width=1 / (3 if stage_idx == 1 else 2)
+                                    ):
                                         for k, v in params.rates.items():
+                                            if stage_idx == 2 and v.stage_1_only:
+                                                continue
                                             with ui.div():
                                                 ui.input_text(
                                                     id=f"s{stage_idx}_{k}", label=str(v)
@@ -943,8 +966,10 @@ def clear_all_inputs():
     for k in params.common.keys():
         ui.update_text(k, value="")
 
-    for k in params.stage_specific.keys():
+    for k, v in params.stage_specific.items():
         ui.update_text(f"s1_{k}", value="")
+        if v.stage_1_only:
+            continue
         ui.update_text(f"s2_{k}", value="")
 
     ui.notification_show("All fields cleared", type="message", duration=3)
@@ -976,7 +1001,10 @@ def parse_params():
     parsed["s1"] = {k: float(input[f"s1_{k}"]()) for k in params.stage_specific.keys()}
     # use params from stage 1 in stage two unless specified otherwise
     parsed["s2"] = parsed["s1"].copy()
-    for k in params.stage_specific.keys():
+    for k, v in params.stage_specific.items():
+        if v.stage_1_only:
+            # skip stage 2 params that are only available for stage 1
+            continue
         value = input[f"s2_{k}"]()
         if value:
             parsed["s2"][k] = float(value)
@@ -987,13 +1015,15 @@ def parse_params():
 input_validator = InputValidator()
 for k, v in params.common.items():
     input_validator.add_rule(k, functools.partial(validate_param, required=v.required))
-for k in params.stage_specific.keys():
+for k, v in params.stage_specific.items():
     # remember that the IDs of the stage-specific params are prefixed with `s1_` and
     # `s2_`
     input_validator.add_rule(
         f"s1_{k}", functools.partial(validate_param, required=True)
     )
-for k in params.stage_specific.keys():
+    if v.stage_1_only:
+        # skip stage 2 params that are only available for stage 1
+        continue
     input_validator.add_rule(
         f"s2_{k}", functools.partial(validate_param, required=False)
     )
@@ -1054,20 +1084,21 @@ def validate_mu_max_phys(value):
     msg = validate_param(value, True)
     if msg is not None:
         return msg
+    if not value:
+        return
     try:
         # only compare with `mu_max_feed` if it has already been provided
         mu_max_feed = float(input["mu_max_feed"]())
     except ValueError:
         return
-    if float(value) <= mu_max_feed:
+    if float(value) < mu_max_feed:
         return "must be at least as big as the maximum growth rate of the feed"
 
 
 input_validator.add_rule("V_batch", validate_V_batch)
 input_validator.add_rule("V_max", validate_V_max)
 input_validator.add_rule("mu_max_feed", validate_mu_max_feed)
-input_validator.add_rule("s1_mu_max_phys", validate_mu_max_phys)
-input_validator.add_rule("s2_mu_max_phys", validate_mu_max_phys)
+input_validator.add_rule("s1_mu_max_phys", functools.partial(validate_mu_max_phys))
 
 
 @reactive.effect

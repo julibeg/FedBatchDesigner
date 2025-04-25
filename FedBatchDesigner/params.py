@@ -16,6 +16,7 @@ class _Param:
 @dataclass
 class InputParam(_Param):
     required: bool = True
+    stage_1_only: bool = False
 
 
 @dataclass
@@ -72,6 +73,7 @@ yields = {
             "Biomass yield coefficient "
             "(grams biomass produced per gram of substrate consumed)"
         ),
+        stage_1_only=True,
     ),
     "Y_PS": InputParam(
         "\(Y_{P/S}\)",
@@ -100,6 +102,7 @@ rates = {
         "\(\pi_1\)",
         "g product / g CDM",
         "Growth-associated specific product formation rate",
+        stage_1_only=True,
     ),
 }
 
@@ -110,6 +113,7 @@ stage_specific = {
         "\(\mu_\\textrm{max}^\\textrm{phys}\)",
         "/h",
         "Maximum specific growth rate (physiological)",
+        stage_1_only=True,
     ),
 }
 
