@@ -684,7 +684,7 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                     )
                     ui.p(
                         "Please see also the ",
-                        ui.input_action_link("info_link", "Info panel"),
+                        ui.input_action_link("info_link", "info panel"),
                         " for more details regarding the underlying assumptions etc.",
                     )
 
@@ -712,15 +712,48 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                     ui.p(
                         f"""
                         {params.feed["V_max"].label} - {params.batch["V_batch"].label}
-                        is the volume of medium added during the feed phase. Specific
-                        growth rates up to {params.feed["mu_max_feed"].label} are
-                        considered when optimizing the the exponential feed and feed
-                        rates up to {params.feed["F_max"].label} are considered when
-                        optimizing the constant feed. For linear feed it is made sure
-                        that the specific growth rate never exceeds
-                        {params.feed["mu_max_feed"].label} and that the feed rate is
-                        always smaller than {params.feed["F_max"].label}.
+                        is the volume of medium added during the feed phase. Three feed
+                        strategies are considered:
                         """
+                    )
+                    ui.tags.ul(
+                        ui.tags.li(
+                            """
+                            Constant feed: The feed rate doesn't change throuout the
+                            feed phase.
+                            """
+                        ),
+                        ui.tags.li(
+                            """
+                            Linear feed: The feed rate increases linearly according
+                            to \(F = F_0 + t \cdot dF\).
+                            """
+                        ),
+                        ui.tags.li(
+                            """
+                            Exponential feed: The feed rate increases exponentially
+                            according to \(F = F_0 \cdot e^{\mu t}\).
+                            """
+                        ),
+                    )
+                    ui.p(
+                        """
+                        For linear and exponential feed, the initial feed rate \(F_0\)
+                        is chosen such that the total amount of biomass also increases
+                        linearly or exponentially (taking substrate requirements for
+                        product formation and maintenance into account).
+                        """
+                    )
+                    ui.p(
+                        f"""
+                        For optimizing the exponential feed, specific growth rates up to
+                        {params.feed["mu_max_feed"].label} are considered. The
+                        parameters {params.stage_specific["mu_max_phys"].label} and
+                        {params.feed["F_max"].label} are used to ensure that neither the
+                        maximum physiological growth rate of the organism nor the
+                        maximum feed rate of the reactor are exceeded by any feed
+                        strategy.
+                        """,
                     )
                     with ui.layout_column_wrap(width=1 / 2):
                         for k, v in params.feed.items():
@@ -773,10 +806,13 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                                             # put `mu_max_phys` on its own and group the
                                             # yields and rates
                                             k = "mu_max_phys"
-                                            ui.input_text(
-                                                id=f"s{stage_idx}_{k}",
-                                                label=str(params.stage_specific[k]),
-                                            )
+                                            v = params.stage_specific[k]
+                                            with ui.div():
+                                                ui.input_text(
+                                                    id=f"s{stage_idx}_{k}",
+                                                    label=str(v),
+                                                )
+                                                ui.tags.p(v.description)
                                 with ui.card():
                                     ui.card_header("Yield coefficients")
                                     with ui.layout_column_wrap(width=1 / 3):
@@ -804,14 +840,14 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
         with ui.nav_panel(f"Results {stage_1_type.feed_type} feed"):
             results(f"{stage_1_type.feed_type}_results", stage_1_type)
 
-    with ui.nav_panel("Info"):
+    with ui.nav_panel("Further information"):
         info.info()
 
 
 @reactive.Effect
 @reactive.event(input.info_link)
 def jump_to_info_panel():
-    go_to_navbar_panel("Info")
+    go_to_navbar_panel("Further information")
 
 
 @reactive.Effect

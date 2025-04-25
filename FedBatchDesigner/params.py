@@ -58,7 +58,7 @@ feed = {
     "F_max": InputParam(
         "\(F_\\textrm{max}\)",
         "L/h",
-        "Maximum constant feed rate",
+        "Maximum feed rate of the reactor",
     ),
 }
 
