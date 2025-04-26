@@ -28,7 +28,7 @@ class FedBatchStage(abc.ABC):
         rho,
         pi_0,
         pi_1,
-        mu_max_phys,
+        mu_max_phys=None,
         debug=False,
     ):
         self.V0 = V0
