@@ -302,8 +302,8 @@ defaults_case_study_valine_one_stage = defaults_E_coli | {
     "V_batch": 3,  # L (from paper)
     "x_batch": 6.7,  # g/L
     "V_max": 4.17,  # L
-    "mu_max_feed": 0.3,  # /h (reasonable value for E. coli exponential feed)
-    "F_max": 0.5,  # L/h (reasonable value for this scale)
+    "mu_max_feed": 0.3,  # /h (50% of `mu_max_phys`)
+    "F_max": 0.5,  # L/h (reasonable value for 3-10 L reactor scale pumps)
     "s_f": 800,  # g glc / L (from paper & confirmed in correspondence with authors)
     "s1_Y_PS": 0.65,  # g product / g glc (theoretical maximum)
     "s1_pi_0": 0.073,  # g product / (g CDM h)
