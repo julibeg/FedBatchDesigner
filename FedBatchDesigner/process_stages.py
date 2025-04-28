@@ -517,7 +517,7 @@ class ConstantStageAnalytical(FedBatchStageAnalytical, ConstantFeed):
         X = expr_1 + (-expr_1 + self.X0) * expr_2
 
         # analytical solution for total product
-        P = (pi_0 / self.beta) * F * s_f * Y_XS * t + (
+        P = self.P0 + (pi_0 / self.beta) * F * s_f * Y_XS * t + (
             pi_0 / (self.alpha * self.beta) - pi_1
         ) * (self.X0 - expr_1) * (1 - expr_2)
 
@@ -558,7 +558,7 @@ class ExponentialStageAnalytical(FedBatchStageAnalytical, ExponentialFeed):
             * ((-1 + np.exp(t * expr_2)) * expr_1 + self.X0 * expr_2)
             / expr_2
         )
-        P = (
+        P = self.P0 + (
             np.exp(-t * self.alpha * self.beta)
             * (
                 mu
@@ -699,11 +699,8 @@ class LogisticStageAnalytical(ExponentialStageAnalytical, LogisticFeed):
         )
 
         numerator = exp_alpha_beta_neg_t * (numerator_part1 + numerator_part2)
-
         denominator = alpha * beta * mu * delta_F * (expr_2)
-
-        result = numerator / denominator
-        return result
+        return self.P0 + numerator / denominator
 
     def evaluate_at_t(self, t, mu, F_inf):
         if not util.is_iterable(t):
@@ -763,7 +760,7 @@ class LinearStageAnalytical(FedBatchStageAnalytical, LinearFeed):
             term5 * t + 0.5 * term6 * t**2 + ((X0 - term5) / term2) * (1 - exp_neg_bt)
         )
 
-        P = pi0 * X_int + pi1 * (X - X0)
+        P = self.P0 + pi0 * X_int + pi1 * (X - X0)
 
         df = pd.DataFrame({"V": V, "X": X, "P": P}, index=t)
         df.index.name = "t"

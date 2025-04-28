@@ -66,9 +66,9 @@ def compare_results(cls_1, cls_2, init_kwargs, eval_kwargs_1, eval_kwargs_2=None
     df_2 = stage_2.evaluate_at_t(TIME_POINTS, **eval_kwargs_2)
 
     # compare results
-    compare_series(df_1["V"], df_2["V"], "V")
-    compare_series(df_1["X"], df_2["X"], "X")
-    compare_series(df_1["P"], df_2["P"], "P")
+    compare_series(df_1["V"], df_2["V"], f"{cls_1.__name__} vs {cls_2.__name__}: V")
+    compare_series(df_1["X"], df_2["X"], f"{cls_1.__name__} vs {cls_2.__name__}: X")
+    compare_series(df_1["P"], df_2["P"], f"{cls_1.__name__} vs {cls_2.__name__}: P")
 
 
 @pytest.fixture
@@ -77,7 +77,7 @@ def default_init_kwargs():
     init_kwargs = {
         "V0": DEFAULTS["V_batch"],
         "X0": DEFAULTS["x_batch"] * DEFAULTS["V_batch"],
-        "P0": 0,
+        "P0": 10,
         "s_f": DEFAULTS["s_f"],
         **{k.split("s1_")[-1]: v for k, v in DEFAULTS.items() if k.startswith("s1_")},
     }
