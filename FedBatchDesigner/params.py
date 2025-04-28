@@ -46,11 +46,6 @@ feed = {
     "V_max": InputParam(
         "\(V_\\textrm{max}\)", "L", "Maximum available volume in the reactor"
     ),
-    "s_f": InputParam(
-        "\(s_f\)",
-        "g / L",
-        "Substrate concentration in the feed",
-    ),
     "mu_max_feed": InputParam(
         "\(\mu_\\textrm{max}^{F,\\textrm{exp}}\)",
         "/h",
@@ -114,6 +109,11 @@ stage_specific = {
         "/h",
         "Maximum specific growth rate (physiological)",
         stage_1_only=True,
+    ),
+    "s_f": InputParam(
+        "\(s_f\)",
+        "g / L",
+        "Substrate concentration in the feed",
     ),
 }
 
@@ -303,8 +303,8 @@ defaults_case_study_valine_one_stage = defaults_E_coli | {
     "x_batch": 6.7,  # g/L
     "V_max": 4.17,  # L
     "mu_max_feed": 0.3,  # /h (50% of `mu_max_phys`)
-    "F_max": 0.5,  # L/h (reasonable value for 5-10 L reactor scale pumps)
-    "s_f": 800,  # g glc / L (from paper & confirmed in correspondence with authors)
+    "F_max": 0.5,  # L/h (reasonable value for 3-10 L reactor scale pumps)
+    "s1_s_f": 800,  # g glc / L (from paper & confirmed in correspondence with authors)
     "s1_Y_PS": 0.65,  # g product / g glc (theoretical maximum)
     "s1_pi_0": 0.073,  # g product / (g CDM h)
     "s1_pi_1": 0.298,  # g product / g CDM
@@ -370,7 +370,7 @@ defaults_pichia = {
     "V_max": 2.65,  # L
     "mu_max_feed": 0.15,  # /h
     "F_max": 0.5,  # L/h (reasonable value for 5-10 L reactor scale pumps)
-    "s_f": 400,  # g glycerol / L (from paper)
+    "s1_s_f": 400,  # g glycerol / L (from paper)
 
     "s1_Y_XS": 0.55,  # g CDM / g glycerol
     "s1_Y_PS": 0.355,  # kAU / g glycerol (from fit)

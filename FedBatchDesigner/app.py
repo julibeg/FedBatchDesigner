@@ -202,7 +202,6 @@ def run_grid_search(stage_1, input_params):
         for t_switch, row_s1 in df_s1.iterrows():
             stage_2 = NoGrowthS2(
                 *row_s1[["V", "X", "P"]],
-                s_f=input_params["common"]["s_f"],
                 **input_params["s2"],
             )
             row_s2 = stage_2.evaluate_at_V(V_max).squeeze()
@@ -225,8 +224,8 @@ def run_grid_search(stage_1, input_params):
     # calculate total amount of substrate added and per-substrate yield
     V_add_s1 = df_comb["V1"] - input_params["common"]["V_batch"]
     V_add_s2 = df_comb["V2"] - df_comb["V1"]
-    S_add_s1 = V_add_s1 * input_params["common"]["s_f"]
-    S_add_s2 = V_add_s2 * input_params["common"]["s_f"]
+    S_add_s1 = V_add_s1 * input_params["s1"]["s_f"]
+    S_add_s2 = V_add_s2 * input_params["s2"]["s_f"]
     df_comb.insert(1, "S1", S_add_s1)
     df_comb.insert(6, "S2", S_add_s1 + S_add_s2)
     df_comb["substrate_yield"] = df_comb["P2"] / df_comb["S2"]
@@ -298,7 +297,6 @@ def submit_button():
                 V0=parsed_params["common"]["V_batch"],
                 X0=X_batch,
                 P0=0,
-                s_f=parsed_params["common"]["s_f"],
                 **parsed_params["s1"],
             )
             for stage_type in STAGE_1_TYPES
@@ -755,7 +753,7 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                         strategy.
                         """,
                     )
-                    with ui.layout_column_wrap(width=1 / 2):
+                    with ui.layout_column_wrap(width=1 / 3):
                         for k, v in params.feed.items():
                             with ui.div():
                                 ui.input_text(id=k, label=str(v))
@@ -773,46 +771,112 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                                 ui.input_text(id=k, label=str(v))
                                 ui.p(v.description)
 
-                # stage-specific parameters
+                # now the stage-specific parameters (we pull out some content into
+                # functions for better readability)
+
                 @expressify
-                def non_mu_max_phys_content():
-                    with ui.div():
+                def stage_specific_intro(stage_idx):
+                    @expressify
+                    def text_content(stage_idx):
+                        with ui.div():
+                            ui.tags.p(
+                                """
+                                These parameters (substrate concentration in the feed, yield
+                                coefficients, etc.) can change between the two stages.
+                                Substrate uptake (as determined by the yield coefficients
+                                and specific rates) always matches the amount of substrate
+                                added in the feed:
+                                """
+                            )
+                            ui.tags.p(
+                                r"""\(
+                                F s_f = X \left(\frac{\mu}{Y_{X/S}} + \frac{\pi_0 +
+                                \mu \pi_1}{Y_{P/S}} + \frac{\rho}{Y_{ATP/S}}\right)
+                                \) .""",
+                                style=("text-align: center; font-size: 130%;"),
+                            )
+                            ui.tags.p(
+                                """
+                                As there is no growth in the second stage (\(\mu = 0\)),
+                                some of these parameters are only relevant (and thus can
+                                only be set) for the first stage.
+                                """
+                            )
+                            if stage_idx == 2:
+                                ui.tags.p(
+                                    """
+                                Parameters for the second stage are optional (values
+                                from the first stage will be used if left blank).
+                                """
+                                )
+
+                    if stage_idx == 1:
+                        # text first and the inputs below
+                        text_content(stage_idx)
+
+                        with ui.card():
+                            with ui.layout_column_wrap(width=1 / 2):
+                                for k in ["mu_max_phys", "s_f"]:
+                                    v = params.stage_specific[k]
+                                    with ui.div():
+                                        ui.input_text(
+                                            id=f"s{stage_idx}_{k}",
+                                            label=str(v),
+                                        )
+                                        ui.tags.p(v.description)
+                    else:
+                        with ui.layout_columns(col_widths=(8, 4)):
+                            # `mu_max_phys` only makes sense for stage 1; put text into
+                            # left column and `mu_max_feed` input into the rgith
+                            text_content(stage_idx)
+                            with ui.div(
+                                style=(
+                                    "display: flex;"
+                                    "align-items: center;"
+                                    "height: 100%;"
+                                )
+                            ):
+                                with ui.card():
+                                    k = "s_f"
+                                    v = params.stage_specific[k]
+                                    with ui.div():
+                                        ui.input_text(
+                                            id=f"s{stage_idx}_{k}",
+                                            label=str(v),
+                                        )
+                                        ui.tags.p(v.description)
+
+                @expressify
+                def yield_inputs(stage_idx):
+                    with ui.card():
+                        ui.card_header("Yield coefficients")
+                        with ui.layout_column_wrap(
+                            width=1 / (3 if stage_idx == 1 else 2)
+                        ):
+                            for k, v in params.yields.items():
+                                if stage_idx == 2 and v.stage_1_only:
+                                    continue
+                                ui.input_text(id=f"s{stage_idx}_{k}", label=str(v))
                         ui.tags.p(
                             """
-                            These parameters (yield coefficients and
-                            specific ATP consumption and product
-                            formation rates) can change between the two
-                            stages and make up the specific substrate
-                            consumption rate according to
-                            """
-                        )
-                        ui.tags.p(
-                            r""" \(
-                            \sigma = \frac{\mu}{Y_{X/S}} + \frac{\pi_0 +
-                            \mu \pi_1}{Y_{P/S}} + \frac{\rho}{Y_{ATP/S}}
-                            \) .""",
-                            style=("text-align: center; font-size: 130%;"),
-                        )
-                        ui.tags.p(
-                            """
-                            As there is no growth in the second stage, some of these are
-                            only available for the first stage.
+                            Yield coefficients of biomass, product, and ATP
+                            (in grams per gram substrate consumed).
                             """
                         )
 
                 @expressify
-                def mu_max_phys_input(stage_idx):
+                def rates_inputs(stage_idx):
                     with ui.card():
-                        # put `mu_max_phys` on its own and group the
-                        # yields and rates
-                        k = "mu_max_phys"
-                        v = params.stage_specific[k]
-                        with ui.div():
-                            ui.input_text(
-                                id=f"s{stage_idx}_{k}",
-                                label=str(v),
-                            )
-                            ui.tags.p(v.description)
+                        ui.card_header("Specific rates")
+                        with ui.layout_column_wrap(
+                            width=1 / (3 if stage_idx == 1 else 2)
+                        ):
+                            for k, v in params.rates.items():
+                                if stage_idx == 2 and v.stage_1_only:
+                                    continue
+                                with ui.div():
+                                    ui.input_text(id=f"s{stage_idx}_{k}", label=str(v))
+                                    ui.tags.p(v.description)
 
                 with ui.card():
                     with ui.navset_bar(
@@ -820,44 +884,9 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                     ):
                         for stage_idx in [1, 2]:
                             with ui.nav_panel(f"Stage {stage_idx}"):
-                                if stage_idx == 1:
-                                    # `mu_max_phys` only makes sense for stage 1; skip
-                                    # it for stage 2
-                                    with ui.layout_columns(col_widths=(8, 4)):
-                                        non_mu_max_phys_content()
-                                        mu_max_phys_input(stage_idx)
-                                else:
-                                    non_mu_max_phys_content()
-                                with ui.card():
-                                    ui.card_header("Yield coefficients")
-                                    with ui.layout_column_wrap(
-                                        width=1 / (3 if stage_idx == 1 else 2)
-                                    ):
-                                        for k, v in params.yields.items():
-                                            if stage_idx == 2 and v.stage_1_only:
-                                                continue
-                                            ui.input_text(
-                                                id=f"s{stage_idx}_{k}", label=str(v)
-                                            )
-                                    ui.tags.p(
-                                        """
-                                        Yield coefficients of biomass, product, and ATP
-                                        (in grams per gram substrate consumed).
-                                        """
-                                    )
-                                with ui.card():
-                                    ui.card_header("Specific rates")
-                                    with ui.layout_column_wrap(
-                                        width=1 / (3 if stage_idx == 1 else 2)
-                                    ):
-                                        for k, v in params.rates.items():
-                                            if stage_idx == 2 and v.stage_1_only:
-                                                continue
-                                            with ui.div():
-                                                ui.input_text(
-                                                    id=f"s{stage_idx}_{k}", label=str(v)
-                                                )
-                                                ui.tags.p(v.description)
+                                stage_specific_intro(stage_idx)
+                                yield_inputs(stage_idx)
+                                rates_inputs(stage_idx)
 
     for stage_1_type in STAGE_1_TYPES:
         with ui.nav_panel(f"Results {stage_1_type.feed_type} feed"):

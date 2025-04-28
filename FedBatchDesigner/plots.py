@@ -342,12 +342,10 @@ class SelectedProcessPlot(Plot):
             V0=self.params["common"]["V_batch"],
             X0=self.params["common"]["V_batch"] * self.params["common"]["x_batch"],
             P0=0,
-            s_f=self.params["common"]["s_f"],
             **self.params["s1"],
         )
         stage_2 = self.stage_2_class(
             *row[["V1", "X1", "P1"]],
-            s_f=self.params["common"]["s_f"],
             **self.params["s2"],
         )
 
