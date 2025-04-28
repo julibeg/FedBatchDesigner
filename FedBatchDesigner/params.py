@@ -303,7 +303,7 @@ defaults_case_study_valine_one_stage = defaults_E_coli | {
     "x_batch": 6.7,  # g/L
     "V_max": 4.17,  # L
     "mu_max_feed": 0.3,  # /h (50% of `mu_max_phys`)
-    "F_max": 0.5,  # L/h (reasonable value for 3-10 L reactor scale pumps)
+    "F_max": 0.5,  # L/h (reasonable value for 5-10 L reactor scale pumps)
     "s_f": 800,  # g glc / L (from paper & confirmed in correspondence with authors)
     "s1_Y_PS": 0.65,  # g product / g glc (theoretical maximum)
     "s1_pi_0": 0.073,  # g product / (g CDM h)
@@ -362,4 +362,32 @@ defaults = {
         """,
         "values": defaults_case_study_valine_two_stage,
     },
+}
+
+defaults_pichia = {
+    "V_batch": 2,  # L (from paper)
+    "x_batch": 24.3,  # g/L
+    "V_max": 2.65,  # L
+    "mu_max_feed": 0.15,  # /h
+    "F_max": 0.5,  # L/h (reasonable value for 5-10 L reactor scale pumps)
+    "s_f": 400,  # g glycerol / L (from paper)
+
+    "s1_Y_XS": 0.55,  # g CDM / g glycerol
+    "s1_Y_PS": 0.355,  # kAU / g glycerol (from fit)
+    "s1_Y_AS": 18 * 507 / 180,  # g ATP / g glycerol (18 mol ATP / mol glycerol)
+
+    "s1_mu_max_phys": 0.23,  # /h (for Pichia on glycerol)
+    "s1_rho": 0.55e-3 * 507,  # g ATP / (g CDM h)
+    "s1_pi_0": 0.,  # g product / (g CDM h)
+    "s1_pi_1": 0.0634,  # g product / g CDM
+
+    "s2_pi_0": 0.0034,
+}
+
+defaults['pichia'] = {
+    "title": "<i>Pichia pastoris</i> (aerobic)",
+    "description": """
+        bla
+        """,
+    "values": defaults_pichia,
 }
