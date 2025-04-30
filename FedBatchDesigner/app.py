@@ -50,8 +50,9 @@ LinS1.growth_param = "G"
 LinS1.extra_columns = ["F0", "dF", "mu_max", "F_end"]
 
 # reactive values
-GRID_SEARCH_DFS = {stage_cls: reactive.value(None) for stage_cls in STAGE_1_TYPES}
-PARSED_PARAMS = reactive.value(None)
+PARAMS_AND_RESULTS = {
+    stage_cls: reactive.value([None, None]) for stage_cls in STAGE_1_TYPES
+}
 
 ui.page_opts(title="FedBatchDesigner", full_width=True, id="page")
 
@@ -284,8 +285,7 @@ def submit_button():
             return
 
         # parse the input parameters
-        parse_params()
-        parsed_params = PARSED_PARAMS.get()
+        parsed_params = parse_params()
 
         # define the constant and exponential first stage and make sure the params are
         # feasible
@@ -319,7 +319,6 @@ def submit_button():
                 duration=30,
             )
             return
-        PARSED_PARAMS.set(parsed_params)
 
         # show a modal while the grid search is running
         m = ui.modal(
@@ -330,7 +329,8 @@ def submit_button():
         ui.modal_show(m)
 
         for stage_cls, instance in stage_instances.items():
-            GRID_SEARCH_DFS[stage_cls].set(run_grid_search(instance, parsed_params))
+            grid_search_results_df = run_grid_search(instance, parsed_params)
+            PARAMS_AND_RESULTS[stage_cls].set([parsed_params, grid_search_results_df])
 
         # calculations are done; remove the modal and jump to "Results"
         ui.modal_remove()
@@ -371,8 +371,7 @@ def results(input, output, session, stage_1_type):
     @render.express
     def _results():
         linked_plots = []
-        parsed_params = PARSED_PARAMS.get()
-        grid_search_df = GRID_SEARCH_DFS[stage_1_type].get()
+        parsed_params, grid_search_df = PARAMS_AND_RESULTS[stage_1_type]()
         selected_process = reactive.Value({})
 
         # check if the grid search has been run; if not (i.e. we don't have results
@@ -585,7 +584,7 @@ def results(input, output, session, stage_1_type):
                                     titer, space-time yield, per-substrate yield).
                                     """
 
-                            sel_params = selected_process.get()
+                            sel_params = selected_process()
                             if sel_params:
                                 sel_row = util.get_df_row_with_index(
                                     grid_search_df,
@@ -1037,7 +1036,7 @@ def parse_params():
         value = input[f"s2_{k}"]()
         if value:
             parsed["s2"][k] = float(value)
-    PARSED_PARAMS.set(parsed)
+    return parsed
 
 
 # input validation rules; validate each param to be numeric etc
