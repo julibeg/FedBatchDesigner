@@ -176,6 +176,7 @@ delta_P_s2 = df_s2["p"].values[1:] - df_s2["p"].values[:-1]
 x_mean_s2 = df_s2['x'].rolling(window=2).mean().values[1:]
 delta_t_s2 = df_s2.index[1:] - df_s2.index[:-1]
 
-pi_0_s2 = delta_P_s2 / (x_mean_s2 * delta_t_s2)
+pi_0_s2_all = delta_P_s2 / (x_mean_s2 * delta_t_s2)
+pi_0_s2 = np.mean(pi_0_s2_all)
 
 # %% ###################################################################################
