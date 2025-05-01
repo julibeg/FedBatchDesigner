@@ -324,6 +324,29 @@ defaults_case_study_valine_two_stage = defaults_case_study_valine_one_stage | {
     "s2_pi_0": 0.114,  # g product / (g CDM h)
 }
 
+# The `pi` values for the S. cerevisiae ethanol case study were fit from data in Zahoor
+# et al. (2020) (https://doi.org/10.1186/s13068-020-01822-9). See notebook in case
+# studies for details).
+s_cerevisiae_ethanol_atp_wasting = {
+    "V_batch": 3,  # L
+    "x_batch": 10,  # g/L
+    "V_max": 4.5,  # L
+    "F_max": 1,  # L/h
+    "s1_s_f": 500,
+    "mu_max_feed": 0.2,  # /h
+    "s1_Y_XS": 0.14,  # g CDM / g glucose (anaerobic)
+    "s1_Y_PS": 0.511,  # g ethanol / g glucose (theoretical)
+    "s1_Y_AS": 2 * 507 / 180,  # g ATP / g glucose (2 mol ATP / mol glucose)
+    "s1_mu_max_phys": 0.235,
+    # like for valine above we set `rho` to zero as this is a fermentative product
+    "s1_rho": 0,  # g ATP / (g CDM h)
+    # the `s1_pi` values were fit from the data in Figure 2 of Zahoor et al. (2020)
+    "s1_pi_0": 0.454,  # g ethanol / (g CDM h)
+    "s1_pi_1": 3.62,  # g ethanol / g CDM
+    # `s2_pi_0` was taken from Table 3 of Zahoor et al. (2020)
+    "s2_pi_0": 0.263,  # g ethanol / (g CDM h)
+}
+
 defaults = {
     "e_coli": {
         "title": "<i>E. coli</i> (aerobic)",
@@ -361,5 +384,15 @@ defaults = {
             href="https://doi.org/10.1016/j.ymben.2020.09.007">Hao et al. (2020)</a>.
         """,
         "values": defaults_case_study_valine_two_stage,
+    },
+    "s_cerevisiae_ethanol_atp_wasting": {
+        "title": "Case study: ethanol production with ATP wasting",
+        "description": """
+        <a href="https://doi.org/10.1186/s13068-020-01822-9">Zahoor et al. (2020)</a>
+        enhanced ethanol production in <i>S. cerevisiae</i> through enforced ATP
+        wasting. They only performed shake flask cultivations in this study, but could
+        have used <tt>FedBatchDesigner</tt> to inform their first fed-batch experiments.
+        """,
+        "values": s_cerevisiae_ethanol_atp_wasting,
     },
 }
