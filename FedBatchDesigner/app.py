@@ -814,7 +814,12 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                         text_content(stage_idx)
 
                         with ui.card():
-                            with ui.layout_column_wrap(width=1 / 2):
+                            with ui.layout_column_wrap(width=1 / 3):
+                                # check box to ask whether fermentative product (to
+                                # regenerate NAD+)
+                                ui.input_checkbox(
+                                    "ferm_prod", "Fermentative product", False
+                                )
                                 for k in ["mu_max_phys", "s_f"]:
                                     v = params.stage_specific[k]
                                     with ui.div():
@@ -830,9 +835,7 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                             text_content(stage_idx)
                             with ui.div(
                                 style=(
-                                    "display: flex;"
-                                    "align-items: center;"
-                                    "height: 100%;"
+                                    "display: flex;align-items: center;height: 100%;"
                                 )
                             ):
                                 with ui.card():
@@ -863,19 +866,34 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                             """
                         )
 
-                @expressify
-                def rates_inputs(stage_idx):
-                    with ui.card():
-                        ui.card_header("Specific rates")
-                        with ui.layout_column_wrap(
-                            width=1 / (3 if stage_idx == 1 else 2)
-                        ):
-                            for k, v in params.rates.items():
-                                if stage_idx == 2 and v.stage_1_only:
-                                    continue
-                                with ui.div():
-                                    ui.input_text(id=f"s{stage_idx}_{k}", label=str(v))
-                                    ui.tags.p(v.description)
+                @module
+                def rates_inputs(_input, output, session, stage_idx):
+                    @render.express
+                    def _rates():
+                        with ui.card():
+                            ui.card_header("Specific rates")
+                            ncols = 3 if stage_idx == 1 else 2
+                            if fermentation_product := input.ferm_prod():
+                                ncols -= 1
+                            with ui.layout_column_wrap(width=1 / ncols):
+                                for k, v in params.rates.items():
+                                    if k == "rho" and fermentation_product:
+                                        continue
+                                    if stage_idx == 2 and v.stage_1_only:
+                                        continue
+                                    with ui.div():
+                                        ui.input_text(
+                                            id=f"s{stage_idx}_{k}",
+                                            label=ui.HTML(str(v)),
+                                        )
+                                        ui.tags.p(v.description)
+
+                        # as this is dynamically generated content, MathJax hasn't
+                        # typeset it yet and we need to manually tell it to typeset
+                        # again (we could do this in a more sophisticated way to tell it
+                        # to only check this element, but that doesn't seem to be
+                        # necessary)
+                        ui.tags.script("MathJax.Hub.Typeset()")
 
                 with ui.card():
                     with ui.navset_bar(
@@ -885,7 +903,7 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                             with ui.nav_panel(f"Stage {stage_idx}"):
                                 stage_specific_intro(stage_idx)
                                 yield_inputs(stage_idx)
-                                rates_inputs(stage_idx)
+                                rates_inputs(f"stage_{stage_idx}", stage_idx)
 
     for stage_1_type in STAGE_1_TYPES:
         with ui.nav_panel(f"Results {stage_1_type.feed_type} feed"):
@@ -1004,7 +1022,12 @@ def clear_all_inputs():
 
 
 def validate_param(value, required):
-    """Make sure the input values are numeric and non-negative."""
+    """
+    Make sure the input values are numeric and non-negative. `required` can be boolean
+    or a callable.
+    """
+    if callable(required):
+        required = required()
     if required and (value is None or value == ""):
         return "Required"
     if not value:
@@ -1023,15 +1046,13 @@ def parse_params():
         # return early if inputs not valid
         return
     parsed = {}
-    parsed["common"] = {
-        k: float(input[k]()) for k, v in params.common.items() if v.required
-    }
+    parsed["common"] = {k: float(input[k]()) for k, v in params.common.items()}
     parsed["s1"] = {k: float(input[f"s1_{k}"]()) for k in params.stage_specific.keys()}
     # use params from stage 1 in stage two unless specified otherwise
     parsed["s2"] = parsed["s1"].copy()
     for k, v in params.stage_specific.items():
         if v.stage_1_only:
-            # skip stage 2 params that are only available for stage 1
+            # skip stage 2 params that only make sense for stage 1 (like `Y_XS`)
             continue
         value = input[f"s2_{k}"]()
         if value:
