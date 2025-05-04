@@ -392,9 +392,9 @@ defaults = {
         "title": "Case study: ethanol production with ATP wasting",
         "description": """
         <a href="https://doi.org/10.1186/s13068-020-01822-9">Zahoor et al. (2020)</a>
-        enhanced ethanol production in <i>S. cerevisiae</i> through enforced ATP
-        wasting. They only performed shake flask cultivations in this study, but could
-        have used <tt>FedBatchDesigner</tt> to inform their first fed-batch experiments.
+        enhanced ethanol production in <i>S. cerevisiae</i> through enforced ATP wasting
+        and nitrogen starvation. <tt>FedBatchDesigner</tt> could be used to inform
+        fed-batch experiments after their initial shake flask cultivations.
         """,
         "values": s_cerevisiae_ethanol_atp_wasting,
     },
