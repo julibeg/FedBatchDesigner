@@ -43,6 +43,11 @@ Built with:
 - Demonstrates optimization of a two-stage fed-batch process with microaerobic production
 - Parameter fitting notebook: `case-studies/valine/fit-parameters.ipynb`
 
+### Ethanol production with enforced ATP wasting
+
+- Demonstrates optimization of a two-stage fed-batch process with nitrogen starvation
+- Parameter fitting notebook: `case-studies/ethanol-atp-wasting/fit-parameters.ipynb`
+
 ### Mevalonic acid production
 
 - Shows process design for sulfur-limited production
