@@ -337,7 +337,9 @@ s_cerevisiae_ethanol_atp_wasting = {
     "F_max": 1,  # L/h
     "s1_s_f": 500,
     "mu_max_feed": 0.2,  # /h
-    "s1_Y_XS": 0.14,  # g CDM / g glucose (anaerobic)
+    # anaerobic biomass yield on glucose taken from Zakhartsev et al. (2015)
+    # (https://doi.org/10.1016/j.jtherbio.2015.05.008)
+    "s1_Y_XS": 0.141,  # g CDM / g glucose (anaerobic)
     "s1_Y_PS": 0.511,  # g ethanol / g glucose (theoretical)
     "s1_Y_AS": 2 * 507 / 180,  # g ATP / g glucose (2 mol ATP / mol glucose)
     "s1_mu_max_phys": 0.235,
