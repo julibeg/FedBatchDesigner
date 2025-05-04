@@ -780,11 +780,11 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                         with ui.div():
                             ui.tags.p(
                                 """
-                                These parameters (substrate concentration in the feed, yield
-                                coefficients, etc.) can change between the two stages.
-                                Substrate uptake (as determined by the yield coefficients
-                                and specific rates) always matches the amount of substrate
-                                added in the feed:
+                                These parameters (substrate concentration in the feed,
+                                yield coefficients, etc.) can change between the two
+                                stages. Substrate uptake (as determined by the yield
+                                coefficients and specific rates) always matches the
+                                amount of substrate added in the feed:
                                 """
                             )
                             ui.tags.p(

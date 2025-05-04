@@ -73,7 +73,10 @@ yields = {
     "Y_PS": InputParam(
         "\(Y_{P/S}\)",
         "g product / g substrate",
-        "Product yield coefficient (grams product formed per gram of substrate consumed)",
+        (
+            "Product yield coefficient "
+            "(grams product formed per gram of substrate consumed)",
+        ),
     ),
     "Y_AS": InputParam(
         "\(Y_{ATP/S}\)",
