@@ -466,13 +466,13 @@ class SelectedProcessPlot(Plot):
                 domain=[0, 0.87],
             ),
             yaxis=dict(
-                title=str(results["V"]),
-                titlefont=dict(color="black"),
+                title=dict(text=str(results["V"])),
+                color="black",
                 tickfont=dict(color="black"),
             ),
             yaxis2=dict(
-                title=str(results["X"]),
-                titlefont=dict(color=colors.red),
+                title=dict(text=str(results["X"])),
+                color=colors.red,
                 tickfont=dict(color=colors.red),
                 overlaying="y",
                 position=1,
@@ -481,8 +481,8 @@ class SelectedProcessPlot(Plot):
             # axis but with a factor for P to make it better visible (and add the factor
             # to the label / legend)
             yaxis3=dict(
-                title=str(results["P"]),
-                titlefont=dict(color=colors.blue),
+                title=dict(text=str(results["P"])),
+                color=colors.blue,
                 tickfont=dict(color=colors.blue),
                 overlaying="y",
                 side="right",
@@ -504,8 +504,8 @@ class SelectedProcessPlot(Plot):
                             args=[
                                 {"visible": [True, True, True, False, False]},
                                 {
-                                    "yaxis2.title": str(results["X"]),
-                                    "yaxis3.title": str(results["P"]),
+                                    "yaxis2.title.text": str(results["X"]),
+                                    "yaxis3.title.text": str(results["P"]),
                                 },
                             ],
                         ),
@@ -515,8 +515,8 @@ class SelectedProcessPlot(Plot):
                             args=[
                                 {"visible": [True, False, False, True, True]},
                                 {
-                                    "yaxis2.title": str(results["x"]),
-                                    "yaxis3.title": str(results["p"]),
+                                    "yaxis2.title.text": str(results["x"]),
+                                    "yaxis3.title.text": str(results["p"]),
                                 },
                             ],
                         ),
