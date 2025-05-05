@@ -8,6 +8,7 @@ import process_stages
 
 DEFAULTS = params.defaults["valine_two_stage"]["values"]
 V_BATCH = DEFAULTS["V_batch"]
+X_BATCH = V_BATCH * DEFAULTS["x_batch"]
 
 N_POINTS = 101
 TIME_POINTS = np.linspace(0, 20, N_POINTS)
@@ -75,10 +76,9 @@ def compare_results(cls_1, cls_2, init_kwargs, eval_kwargs_1, eval_kwargs_2=None
 def default_init_kwargs():
     # set up initial conditions from defaults
     init_kwargs = {
-        "V0": DEFAULTS["V_batch"],
-        "X0": DEFAULTS["x_batch"] * DEFAULTS["V_batch"],
+        "V0": V_BATCH,
+        "X0": X_BATCH,
         "P0": 10,
-        "s_f": DEFAULTS["s_f"],
         **{k.split("s1_")[-1]: v for k, v in DEFAULTS.items() if k.startswith("s1_")},
     }
     return init_kwargs
