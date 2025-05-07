@@ -190,7 +190,7 @@ def run_grid_search(stage_1, input_params):
             (growth_val_range, V_frac_range), names=[stage_1.growth_param, "V_frac"]
         ),
         columns=["V1", "X1", "P1", "t_switch", "V2", "X2", "P2", "F2", "t_end"],
-    )
+    ).sort_index()
 
     # for each `F`, get the points in the exponential feed at all `V_frac`; then "fill
     # up" until `V_max` with a constant feed rate and calculate productivity based on
