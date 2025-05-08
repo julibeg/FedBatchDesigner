@@ -112,3 +112,57 @@ def quadratic_formula(a, b, c, plus_only=False):
         return t1
     t2 = (-b - sqrt_disc) / (2 * a)
     return (t1, t2)
+
+
+def expand_grid_search_results(df_comb, stage_1, input_params):
+    """
+    Calculate a few extra metrics (final biomass and product concentration,
+    productivity, space-time yield, etc.) for the resutls df of a grid search.
+    """
+    df_comb["x2"] = df_comb["X2"] / df_comb["V2"]
+    df_comb["p2"] = df_comb["P2"] / df_comb["V2"]
+    df_comb["productivity"] = df_comb["P2"] / df_comb["t_end"]
+    df_comb["space_time_yield"] = df_comb["productivity"] / df_comb["V2"]
+    # calculate total amount of substrate added and per-substrate yield
+    V_add_s1 = df_comb["V1"] - input_params["common"]["V_batch"]
+    V_add_s2 = df_comb["V2"] - df_comb["V1"]
+    S_add_s1 = V_add_s1 * input_params["s1"]["s_f"]
+    S_add_s2 = V_add_s2 * input_params["s2"]["s_f"]
+    df_comb.insert(1, "S1", S_add_s1)
+    df_comb.insert(6, "S2", S_add_s1 + S_add_s2)
+    df_comb["substrate_yield"] = df_comb["P2"] / df_comb["S2"]
+
+    # if exponential, add substrate start volume; if constant, add mu in first instance
+    # of feed (as this will be the largest mu encountered in the feed phase)
+    if isinstance(stage_1, ExpS1):
+        # exponential feed --> add substrate start volume and initial feed rate for each
+        # `mu` to the results
+        for mu, df in df_comb.groupby("mu"):
+            df_comb.loc[(mu, slice(None)), "substrate_start_volume"] = (
+                stage_1.substrate_start_volume(mu=mu)
+            )
+            df_comb.loc[(mu, slice(None)), "F0"] = stage_1.F0(mu=mu)
+            df_comb.loc[(mu, slice(None)), "F_end"] = stage_1.dV(
+                mu=mu, t=df["t_switch"].iloc[-1]
+            ).max()
+    elif isinstance(stage_1, ConstS1):
+        # constant feed --> add maximum growth rate (at first instance of feed)
+        for F, _ in df_comb.groupby("F"):
+            df_comb.loc[(F, slice(None)), "mu_max"] = (
+                stage_1.calculate_initial_mu_from_F(F)
+            )
+    elif isinstance(stage_1, LinS1):
+        # linear feed with constant absolute growth --> add maximum specific growth rate
+        # and feed rate
+        for G, df in df_comb.groupby("G"):
+            F0, dF = stage_1.F0_and_dF_for_constant_growth(G=G)
+            df_comb.loc[(G, slice(None)), "F0"] = F0
+            df_comb.loc[(G, slice(None)), "dF"] = dF
+            df_comb.loc[(G, slice(None)), "mu_max"] = (
+                stage_1.calculate_initial_mu_from_F(F0)
+            )
+            df_comb.loc[(G, slice(None)), "F_end"] = stage_1.dV(
+                G=G, t=df["t_switch"].iloc[-1]
+            )
+
+    return df_comb
