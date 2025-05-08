@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 import scipy
 import pytest
 
@@ -15,7 +14,6 @@ X_BATCH = V_BATCH * DEFAULTS["x_batch"]
 
 N_POINTS = 101
 TIME_POINTS = np.linspace(0, 20, N_POINTS)
-
 
 
 def compare_results(cls_1, cls_2, init_kwargs, eval_kwargs_1, eval_kwargs_2=None):
@@ -40,9 +38,15 @@ def compare_results(cls_1, cls_2, init_kwargs, eval_kwargs_1, eval_kwargs_2=None
     df_2 = stage_2.evaluate_at_t(TIME_POINTS, **eval_kwargs_2)
 
     # compare results
-    util.compare_series(df_1["V"], df_2["V"], f"{cls_1.__name__} vs {cls_2.__name__}: V")
-    util.compare_series(df_1["X"], df_2["X"], f"{cls_1.__name__} vs {cls_2.__name__}: X")
-    util.compare_series(df_1["P"], df_2["P"], f"{cls_1.__name__} vs {cls_2.__name__}: P")
+    util.compare_series(
+        df_1["V"], df_2["V"], f"{cls_1.__name__} vs {cls_2.__name__}: V"
+    )
+    util.compare_series(
+        df_1["X"], df_2["X"], f"{cls_1.__name__} vs {cls_2.__name__}: X"
+    )
+    util.compare_series(
+        df_1["P"], df_2["P"], f"{cls_1.__name__} vs {cls_2.__name__}: P"
+    )
 
 
 @pytest.fixture

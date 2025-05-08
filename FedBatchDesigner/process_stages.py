@@ -517,9 +517,13 @@ class ConstantStageAnalytical(FedBatchStageAnalytical, ConstantFeed):
         X = expr_1 + (-expr_1 + self.X0) * expr_2
 
         # analytical solution for total product
-        P = self.P0 + (pi_0 / self.beta) * F * s_f * Y_XS * t + (
-            pi_0 / (self.alpha * self.beta) - pi_1
-        ) * (self.X0 - expr_1) * (1 - expr_2)
+        P = (
+            self.P0
+            + (pi_0 / self.beta) * F * s_f * Y_XS * t
+            + (pi_0 / (self.alpha * self.beta) - pi_1)
+            * (self.X0 - expr_1)
+            * (1 - expr_2)
+        )
 
         df = pd.DataFrame({"V": V, "X": X, "P": P}, index=t)
         df.index.name = "t"

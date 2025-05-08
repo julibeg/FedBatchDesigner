@@ -2,7 +2,6 @@ import contextlib
 import functools
 import time
 
-import numpy as np
 import pandas as pd
 from shiny import reactive
 from shiny.express import expressify, input, module, render, session as root_session, ui
@@ -131,7 +130,10 @@ def submit_button():
         # (for now we only check if `F_max` is smaller than the minimum feed rate
         # required to add enough medium in the first instant of constant feed, but we
         # should add more checks in the future)
-        if stage_instances[grid_search.ConstS1].F_min > parsed_params["common"]["F_max"]:
+        if (
+            stage_instances[grid_search.ConstS1].F_min
+            > parsed_params["common"]["F_max"]
+        ):
             # parameters are infeasible; `F_max` needs to be increased
             ui.notification_show(
                 """
