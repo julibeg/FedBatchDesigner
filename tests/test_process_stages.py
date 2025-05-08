@@ -6,6 +6,9 @@ import pytest
 import params
 import process_stages
 
+# utils for tests
+import utils_for_tests as util
+
 DEFAULTS = params.defaults["valine_two_stage"]["values"]
 V_BATCH = DEFAULTS["V_batch"]
 X_BATCH = V_BATCH * DEFAULTS["x_batch"]
@@ -13,36 +16,6 @@ X_BATCH = V_BATCH * DEFAULTS["x_batch"]
 N_POINTS = 101
 TIME_POINTS = np.linspace(0, 20, N_POINTS)
 
-
-def compare_series(series_1, series_2, name=None, rtol=1e-4, atol=1e-8):
-    """Compare two series with detailed error message. Logic re. `rtol` and `atol` is
-    similar to `np.isclose()` but using the mean instead of `b` for the relative
-    difference.
-
-    :param series_1: first series to compare
-    :param series_2: second series to compare
-    :param name: name of the variable being compared (e.g., 'V', 'X', 'P')
-    :raises AssertionError: if the series are not close
-    """
-    # make sure we got two `pd.Series`
-    assert isinstance(series_1, pd.Series)
-    assert isinstance(series_2, pd.Series)
-    assert series_1.index.equals(series_2.index)
-
-    # find if / where they differe
-    means = np.asarray((series_1 + series_2) / 2)
-    diffs = np.asarray(series_1 - series_2)
-    diff_mask = np.abs(diffs) > atol + rtol * np.abs(means)
-    if diff_mask.any():
-        # get index of first difference
-        diff_idx = series_1.index[np.where(diff_mask)[0][0]]
-        name = name or series_1.name or series_2.name
-        raise AssertionError(
-            "difference "
-            + (f"in {name} " if name is not None else "")
-            + f"at t={diff_idx}: {series_1[diff_idx]} != {series_2[diff_idx]} "
-            + f"(diff = {series_1[diff_idx] - series_2[diff_idx]})"
-        )
 
 
 def compare_results(cls_1, cls_2, init_kwargs, eval_kwargs_1, eval_kwargs_2=None):
@@ -67,9 +40,9 @@ def compare_results(cls_1, cls_2, init_kwargs, eval_kwargs_1, eval_kwargs_2=None
     df_2 = stage_2.evaluate_at_t(TIME_POINTS, **eval_kwargs_2)
 
     # compare results
-    compare_series(df_1["V"], df_2["V"], f"{cls_1.__name__} vs {cls_2.__name__}: V")
-    compare_series(df_1["X"], df_2["X"], f"{cls_1.__name__} vs {cls_2.__name__}: X")
-    compare_series(df_1["P"], df_2["P"], f"{cls_1.__name__} vs {cls_2.__name__}: P")
+    util.compare_series(df_1["V"], df_2["V"], f"{cls_1.__name__} vs {cls_2.__name__}: V")
+    util.compare_series(df_1["X"], df_2["X"], f"{cls_1.__name__} vs {cls_2.__name__}: X")
+    util.compare_series(df_1["P"], df_2["P"], f"{cls_1.__name__} vs {cls_2.__name__}: P")
 
 
 @pytest.fixture
@@ -139,7 +112,7 @@ def test_exp_feed_F0(default_init_kwargs):
         V=np.linspace(V_BATCH, V_end, N_POINTS),
         mu=mu,
     )
-    compare_series(df.eval("X * @mu"), df["dX"])
+    util.compare_series(df.eval("X * @mu"), df["dX"])
 
 
 def test_exp_feed_mu_for_F_max(default_init_kwargs):
