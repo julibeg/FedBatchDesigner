@@ -154,9 +154,9 @@ results = {
         "Change of feed rate per hour (for linear feed)",
     ),
     "F_end": ResultParam(
-        "Final feed rate",
+        "Final feed rate in first stage",
         "L/h",
-        "The feed rate at the end of the feed phase",
+        "The feed rate at the end of the growth stage",
     ),
     "V_frac": ResultParam(
         "Fraction of feed volume in first stage",

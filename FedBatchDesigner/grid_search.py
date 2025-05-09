@@ -164,8 +164,8 @@ def expand_grid_search_results(df_comb, stage_1, input_params):
             )
             df_comb.loc[(mu, slice(None)), "F0"] = stage_1.F0(mu=mu)
             df_comb.loc[(mu, slice(None)), "F_end"] = stage_1.dV(
-                mu=mu, t=df["t_switch"].iloc[-1]
-            ).max()
+                mu=mu, t=df["t_switch"]
+            )
     elif isinstance(stage_1, ConstS1):
         # constant feed --> add maximum growth rate (at first instance of feed)
         for F, _ in df_comb.groupby("F"):
@@ -182,8 +182,6 @@ def expand_grid_search_results(df_comb, stage_1, input_params):
             df_comb.loc[(G, slice(None)), "mu_max"] = (
                 stage_1.calculate_initial_mu_from_F(F0)
             )
-            df_comb.loc[(G, slice(None)), "F_end"] = stage_1.dV(
-                G=G, t=df["t_switch"].iloc[-1]
-            )
+            df_comb.loc[(G, slice(None)), "F_end"] = stage_1.dV(G=G, t=df["t_switch"])
 
     return df_comb
