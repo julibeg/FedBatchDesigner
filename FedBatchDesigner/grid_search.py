@@ -132,7 +132,7 @@ def run(stage_1, input_params):
             ]
     # add some extra metrics to the results df
     df_comb = expand_grid_search_results(df_comb, stage_1, input_params)
-    return df_comb.round(ROUND_DIGITS)
+    return df_comb
 
 
 def expand_grid_search_results(df_comb, stage_1, input_params):
@@ -184,4 +184,4 @@ def expand_grid_search_results(df_comb, stage_1, input_params):
             )
             df_comb.loc[(G, slice(None)), "F_end"] = stage_1.dV(G=G, t=df["t_switch"])
 
-    return df_comb
+    return df_comb.round(ROUND_DIGITS)
