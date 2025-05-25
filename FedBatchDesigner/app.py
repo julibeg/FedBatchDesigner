@@ -57,6 +57,19 @@ ui.head_content(
         "window.PlotlyConfig = {MathJaxConfig: 'local'};",
         type="text/javascript",
     ),
+    # script for disabling / enabling input fields
+    ui.tags.script(
+        """
+        if (window.Shiny) {
+            Shiny.addCustomMessageHandler("toggle_input_disabled", function(message) {
+                const input = document.getElementById(message.id);
+                if (input) {
+                    input.disabled = message.disable;
+                }
+            });
+        }
+        """
+    ),
     # smaller font size for the navbar titles
     ui.tags.style(
         """
@@ -587,8 +600,7 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                         for k, v in params.feed.items():
                             with ui.div():
                                 INPUTS.add_input(k, str(v))
-                                INPUTS.add_rule(
-                                    k,
+                                INPUTS[k].add_rule(
                                     functools.partial(
                                         util.validate_param, required=v.required
                                     ),
@@ -605,8 +617,7 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                         for k, v in params.batch.items():
                             with ui.div():
                                 INPUTS.add_input(k, str(v))
-                                INPUTS.add_rule(
-                                    k,
+                                INPUTS[k].add_rule(
                                     functools.partial(
                                         util.validate_param, required=v.required
                                     ),
@@ -672,7 +683,7 @@ def populate_defaults_button():
         ),
         ui.div(
             ui.input_action_button(
-                "apply_default",
+                "apply_defaults",
                 "Apply selected defaults",
                 disabled=True,
                 class_="btn btn-secondary",
@@ -696,11 +707,11 @@ def populate_defaults_button():
 @reactive.Effect
 @reactive.event(input.selected_defaults)
 def make_apply_defaults_button_clickable():
-    ui.update_action_button("apply_default", disabled=False)
+    ui.update_action_button("apply_defaults", disabled=False)
 
 
 @reactive.Effect
-@reactive.event(input.apply_default)
+@reactive.event(input.apply_defaults)
 def apply_selected_defaults():
     """Apply the selected default parameter set"""
     try:
@@ -708,22 +719,21 @@ def apply_selected_defaults():
         default_set_name = selected["title"]
         default_values = selected["values"]
 
-        hoi = True
-        hoi = False
-        if hoi:
-            s1 = set(default_values.keys())
-            s2 = set(INPUTS._dict.keys())
-            breakpoint()
-            s1 - s2
-            s2
-            s2 - s1
-            default_values
-
         for k, v in default_values.items():
+            # if a stage is anaerobic, set the anaerobic checkbox
+            if k == "s1_anaerobic":
+                ui.update_checkbox("s1-anaerobic", value=v)
+                # breakpoint()
+                continue
+            if k == "s2_anaerobic":
+                ui.update_checkbox("s2-anaerobic", value=v)
+                continue
+
             # only use default if field is empty
-            if not INPUTS.get(k):
-                INPUTS.set(k, round(v, 3))
+            if INPUTS[k].get() is None:
+                INPUTS[k].set(round(v, 3))
                 # ui.update_text(k, value=round(v, 3))
+
         ui.notification_show(
             ui.HTML(f"Applied defaults from '{default_set_name}'"),
             type="message",
@@ -744,6 +754,8 @@ def apply_selected_defaults():
 def clear_all_inputs():
     """Clear all input fields"""
     INPUTS.clear()
+    ui.update_checkbox("s1-anaerobic", value=False)
+    ui.update_checkbox("s2-anaerobic", value=False)
     ui.notification_show("All fields cleared", type="message", duration=3)
 
 
@@ -756,7 +768,7 @@ def validate_V_batch(value):
         return msg
     try:
         # only compare with `V_max` if it has already been provided
-        V_max = INPUTS.get("V_max")
+        V_max = INPUTS["V_max"].get()
     except ValueError:
         return
     if float(value) >= V_max:
@@ -772,7 +784,7 @@ def validate_V_max(value):
         return msg
     try:
         # only compare with `V_batch` if it has already been provided
-        V_batch = INPUTS.get("V_batch")
+        V_batch = INPUTS["V_batch"].get()
     except ValueError:
         return
     if float(value) <= V_batch:
@@ -788,7 +800,7 @@ def validate_mu_max_feed(value):
         return msg
     try:
         # only compare with `s1_mu_max_phys` if it has already been provided
-        mu_max_phys = INPUTS.get("s1_mu_max_phys")
+        mu_max_phys = INPUTS["s1_mu_max_phys"].get()
     except ValueError:
         return
     if float(value) > mu_max_phys:
@@ -806,7 +818,7 @@ def validate_mu_max_phys(value):
         return
     try:
         # only compare with `mu_max_feed` if it has already been provided
-        mu_max_feed = INPUTS.get("mu_max_feed")
+        mu_max_feed = INPUTS["mu_max_feed"].get()
     except ValueError:
         return
     if float(value) < mu_max_feed:
@@ -814,8 +826,8 @@ def validate_mu_max_phys(value):
 
 
 # add rules to make sure that `V_batch < V_max`
-INPUTS.add_rule("V_batch", validate_V_batch)
-INPUTS.add_rule("V_max", validate_V_max)
+INPUTS["V_batch"].add_rule(validate_V_batch)
+INPUTS["V_max"].add_rule(validate_V_max)
 # add rule to make sure that `mu_max_feed` is not larger than `mu_max_phys` (the
 # accompanying rule for `s1_mu_max_phys` is added in the `stage_specific_inputs` module)
-INPUTS.add_rule("mu_max_feed", validate_mu_max_feed)
+INPUTS["mu_max_feed"].add_rule(validate_mu_max_feed)

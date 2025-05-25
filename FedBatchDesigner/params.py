@@ -326,15 +326,16 @@ defaults_case_study_valine_one_stage = defaults_E_coli | {
 defaults_case_study_valine_two_stage = defaults_case_study_valine_one_stage | {
     "V_max": 4.1,  # L
     "s2_Y_PS": 0.46,  # g product / g glc (from paper)
-    # we set `rho` to zero for stage 2; this is necessary in anaerobic conditions when
-    # the synthesis of the product is used to regenerate NAD+ (since technically no
-    # glucose is fully "consumed" to generate ATP in such a case; we get ATP from
-    # glycolysis, but the resulting pyruvate is used for valine production)
     "s2_rho": 0,
     # `Y_AS` is a lot lower in anaerobic conditions; however, this is irrelevant because
     # we're setting `rho=0` in stage 2 anyway
     "s2_Y_AS": 2 * 507 / 180,  # g ATP / g glc (this is irrelevant since `rho=0`)
     "s2_pi_0": 0.114,  # g product / (g CDM h)
+    # s2 is micraerobic which will set `rho` to zero; this is necessary in anaerobic
+    # conditions when the synthesis of the product is used to regenerate NAD+ (since
+    # technically no glucose is fully "consumed" to generate ATP in such a case; we get
+    # ATP from glycolysis, but the resulting pyruvate is used for valine production)
+    "s2_anaerobic": True,
 }
 
 # The `pi` values for the S. cerevisiae ethanol case study were fit from data in Zahoor
@@ -354,12 +355,13 @@ s_cerevisiae_ethanol_atp_wasting = {
     "s1_Y_AS": 2 * 507 / 180,  # g ATP / g glucose (2 mol ATP / mol glucose)
     "s1_mu_max_phys": 0.235,
     # like for valine above we set `rho` to zero as this is a fermentative product
-    "s1_rho": 0,  # g ATP / (g CDM h)
+    "s1_anaerobic": True,
     # the `s1_pi` values were fit from the data in Figure 2 of Zahoor et al. (2020)
     "s1_pi_0": 0.454,  # g ethanol / (g CDM h)
     "s1_pi_1": 3.62,  # g ethanol / g CDM
     # `s2_pi_0` was taken from Table 3 of Zahoor et al. (2020)
     "s2_pi_0": 0.263,  # g ethanol / (g CDM h)
+    "s2_anaerobic": True,
 }
 
 defaults = {

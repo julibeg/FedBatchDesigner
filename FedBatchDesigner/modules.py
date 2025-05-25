@@ -1,5 +1,6 @@
 import functools
 
+from shiny import reactive
 from shiny.express import ui, expressify, module
 from shiny_validate import InputValidator
 
@@ -7,8 +8,10 @@ import params
 import util
 
 
-def validate_param(value, required):
+def validate_param(value, required, disable_toggle=None):
     """Make sure the input values are numeric and non-negative."""
+    if disable_toggle is not None and disable_toggle():
+        return
     if required and (value is None or value == ""):
         return "Required"
     if not value:
@@ -69,7 +72,13 @@ def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
         text_content(stage_idx)
 
         with ui.card():
-            with ui.layout_column_wrap(width=1 / 2):
+            with ui.layout_column_wrap(width=1 / 3):
+                with ui.div(style="display: flex; align-items: center; height: 100%;"):
+                    ui.input_checkbox(
+                        "anaerobic",
+                        "Anaerobic stage (anaerobic fermentative product)",
+                        value=False,
+                    )
                 for k in ["mu_max_phys", "s_f"]:
                     v = params.stage_specific[k]
                     with ui.div():
@@ -77,8 +86,8 @@ def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
                         inputs_obj.add_input(
                             id=input_id, label=str(v), validator=local_validator
                         )
-                        inputs_obj.add_rule(
-                            input_id, functools.partial(validate_param, required=True)
+                        inputs_obj[input_id].add_rule(
+                            functools.partial(validate_param, required=True)
                         )
                         ui.tags.p(v.description)
 
@@ -95,13 +104,13 @@ def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
                 return
             try:
                 # only compare with `mu_max_feed` if it has already been provided
-                mu_max_feed = float(inputs_obj.get("mu_max_feed"))
+                mu_max_feed = float(inputs_obj["mu_max_feed"].get())
             except ValueError:
                 return
             if float(value) < mu_max_feed:
                 return "must be at least as big as the maximum growth rate of the feed"
 
-        inputs_obj.add_rule("s1_mu_max_phys", validate_mu_max_phys)
+        inputs_obj["s1_mu_max_phys"].add_rule(validate_mu_max_phys)
 
     else:
         with ui.layout_columns(col_widths=(8, 4)):
@@ -112,6 +121,11 @@ def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
                 style=("display: flex;" "align-items: center;" "height: 100%;")
             ):
                 with ui.card():
+                    ui.input_checkbox(
+                        "anaerobic",
+                        "Anaerobic stage (anaerobic fermentative product)",
+                        value=False,
+                    )
                     k = "s_f"
                     v = params.stage_specific[k]
                     with ui.div():
@@ -119,8 +133,8 @@ def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
                         inputs_obj.add_input(
                             id=input_id, label=str(v), validator=local_validator
                         )
-                        inputs_obj.add_rule(
-                            input_id, functools.partial(validate_param, required=False)
+                        inputs_obj[input_id].add_rule(
+                            functools.partial(validate_param, required=False)
                         )
                         ui.tags.p(v.description)
 
@@ -134,8 +148,8 @@ def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
                 inputs_obj.add_input(
                     id=input_id, label=str(v), validator=local_validator
                 )
-                inputs_obj.add_rule(
-                    input_id, functools.partial(validate_param, required=stage_idx == 1)
+                inputs_obj[input_id].add_rule(
+                    functools.partial(validate_param, required=stage_idx == 1),
                 )
         ui.tags.p(
             """
@@ -155,8 +169,21 @@ def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
                     inputs_obj.add_input(
                         id=input_id, label=str(v), validator=local_validator
                     )
-                    inputs_obj.add_rule(
-                        input_id,
-                        functools.partial(validate_param, required=stage_idx == 1),
+                    inputs_obj[input_id].add_rule(
+                        functools.partial(
+                            validate_param,
+                            required=stage_idx == 1,
+                            # disable_toggle=input.anaerobic
+                            # if stage_idx == 1 and k == "rho"
+                            # else None,
+                        ),
                     )
                     ui.tags.p(v.description)
+
+    @reactive.effect
+    @reactive.event(input.anaerobic)
+    async def anaerobic():
+        """Disable the `rho` input if the stage is anaerobic."""
+        rho_input = inputs_obj[f"{module_id}_rho"]
+        await rho_input.set_disabled(input.anaerobic())
+        rho_input.set(0 if input.anaerobic() else "")
