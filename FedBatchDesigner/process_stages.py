@@ -734,37 +734,37 @@ class LinearStageAnalytical(FedBatchStageAnalytical, LinearFeed):
         t = np.asarray(t)
 
         X0 = self.X0
-        sf = self.s_f
-        Yxs = self.Y_XS
-        Yas = self.Y_AS
-        Yps = self.Y_PS
+        s_f = self.s_f
+        Y_XS = self.Y_XS
+        Y_AS = self.Y_AS
+        Y_PS = self.Y_PS
         rho = self.rho
-        pi0 = self.pi_0
-        pi1 = self.pi_1
+        pi_0 = self.pi_0
+        pi_1 = self.pi_1
 
         # calculate V
         V = self.V0 + t * F0 + dF * t**2 / 2
 
         # get a few common expressions
-        term1 = (1 / Yxs) + pi1 / Yps
-        term2 = (rho / Yas + pi0 / Yps) / term1
+        term1 = (1 / Y_XS) + pi_1 / Y_PS
+        term2 = (rho / Y_AS + pi_0 / Y_PS) / term1
         exp_bt = np.exp(term2 * t)
         exp_neg_bt = np.exp(-term2 * t)
         term3 = (F0 / term2) * (exp_bt - 1)
         term4 = dF * ((exp_bt * (t * term2 - 1) + 1) / (term2**2))
-        integral_term = (sf / term1) * (term3 + term4)
+        integral_term = (s_f / term1) * (term3 + term4)
 
         # calculate X
         X = exp_neg_bt * (X0 + integral_term)
 
-        term5 = (sf / (term1 * term2)) * (F0 - dF / term2)
-        term6 = (sf * dF) / (term1 * term2)
+        term5 = (s_f / (term1 * term2)) * (F0 - dF / term2)
+        term6 = (s_f * dF) / (term1 * term2)
 
         X_int = (
             term5 * t + 0.5 * term6 * t**2 + ((X0 - term5) / term2) * (1 - exp_neg_bt)
         )
 
-        P = self.P0 + pi0 * X_int + pi1 * (X - X0)
+        P = self.P0 + pi_0 * X_int + pi_1 * (X - X0)
 
         df = pd.DataFrame({"V": V, "X": X, "P": P}, index=t)
         df.index.name = "t"
