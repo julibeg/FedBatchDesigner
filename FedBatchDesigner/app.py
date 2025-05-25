@@ -2,17 +2,17 @@ import contextlib
 import functools
 import time
 
-import pandas as pd
 from shiny import reactive
-from shiny.express import expressify, input, module, render, session as root_session, ui
-from shiny_validate import InputValidator
+from shiny.express import input, module, render, session as root_session, ui
 from shinywidgets import render_plotly
 
 import colors
 import grid_search
 import icons
 import info
+import inputs
 from logger import logger
+import modules
 import params
 import plots
 import util
@@ -27,6 +27,9 @@ N_CONTOURS = 30
 PARAMS_AND_RESULTS = {
     stage_cls: reactive.value([None, None]) for stage_cls in grid_search.STAGE_1_TYPES
 }
+
+
+INPUTS = inputs.Inputs()
 
 ui.page_opts(title="FedBatchDesigner", full_width=True, id="page")
 
@@ -100,7 +103,7 @@ def submit_button():
     """
 
     try:
-        if not input_validator.is_valid():
+        if not INPUTS.all_valid():
             # inputs are not valid; show a notification and return
             ui.notification_show(
                 "Invalid input parameters. Please check the fields marked in red.",
@@ -110,7 +113,7 @@ def submit_button():
             return
 
         # parse the input parameters
-        parsed_params = parse_params()
+        parsed_params = INPUTS.parse()
 
         # define the constant and exponential first stage and make sure the params are
         # feasible
@@ -583,7 +586,13 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                     with ui.layout_column_wrap(width=1 / 3):
                         for k, v in params.feed.items():
                             with ui.div():
-                                ui.input_text(id=k, label=str(v))
+                                INPUTS.add_input(k, str(v))
+                                INPUTS.add_rule(
+                                    k,
+                                    functools.partial(
+                                        util.validate_param, required=v.required
+                                    ),
+                                )
                                 ui.p(v.description)
 
             with ui.div():
@@ -595,125 +604,27 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                     with ui.layout_column_wrap(width=1 / 2):
                         for k, v in params.batch.items():
                             with ui.div():
-                                ui.input_text(id=k, label=str(v))
+                                INPUTS.add_input(k, str(v))
+                                INPUTS.add_rule(
+                                    k,
+                                    functools.partial(
+                                        util.validate_param, required=v.required
+                                    ),
+                                )
                                 ui.p(v.description)
 
-                # now the stage-specific parameters (we pull out some content into
-                # functions for better readability)
-
-                @expressify
-                def stage_specific_intro(stage_idx):
-                    @expressify
-                    def text_content(stage_idx):
-                        with ui.div():
-                            ui.tags.p(
-                                """
-                                These parameters (substrate concentration in the feed,
-                                yield coefficients, etc.) can change between the two
-                                stages. Substrate uptake (as determined by the yield
-                                coefficients and specific rates) always matches the
-                                amount of substrate added in the feed:
-                                """
-                            )
-                            ui.tags.p(
-                                r"""\(
-                                F s_f = X \left(\frac{\mu}{Y_{X/S}} + \frac{\pi_0 +
-                                \mu \pi_1}{Y_{P/S}} + \frac{\rho}{Y_{ATP/S}}\right)
-                                \) .""",
-                                style=("text-align: center; font-size: 130%;"),
-                            )
-                            ui.tags.p(
-                                """
-                                As there is no growth in the second stage (\(\mu = 0\)),
-                                some of these parameters are only relevant (and thus can
-                                only be set) for the first stage.
-                                """
-                            )
-                            if stage_idx == 2:
-                                ui.tags.p(
-                                    """
-                                Parameters for the second stage are optional (values
-                                from the first stage will be used if left blank).
-                                """
-                                )
-
-                    if stage_idx == 1:
-                        # text first and the inputs below
-                        text_content(stage_idx)
-
-                        with ui.card():
-                            with ui.layout_column_wrap(width=1 / 2):
-                                for k in ["mu_max_phys", "s_f"]:
-                                    v = params.stage_specific[k]
-                                    with ui.div():
-                                        ui.input_text(
-                                            id=f"s{stage_idx}_{k}",
-                                            label=str(v),
-                                        )
-                                        ui.tags.p(v.description)
-                    else:
-                        with ui.layout_columns(col_widths=(8, 4)):
-                            # `mu_max_phys` only makes sense for stage 1; put text into
-                            # left column and `mu_max_feed` input into the rgith
-                            text_content(stage_idx)
-                            with ui.div(
-                                style=(
-                                    "display: flex;"
-                                    "align-items: center;"
-                                    "height: 100%;"
-                                )
-                            ):
-                                with ui.card():
-                                    k = "s_f"
-                                    v = params.stage_specific[k]
-                                    with ui.div():
-                                        ui.input_text(
-                                            id=f"s{stage_idx}_{k}",
-                                            label=str(v),
-                                        )
-                                        ui.tags.p(v.description)
-
-                @expressify
-                def yield_inputs(stage_idx):
-                    with ui.card():
-                        ui.card_header("Yield coefficients")
-                        with ui.layout_column_wrap(
-                            width=1 / (3 if stage_idx == 1 else 2)
-                        ):
-                            for k, v in params.yields.items():
-                                if stage_idx == 2 and v.stage_1_only:
-                                    continue
-                                ui.input_text(id=f"s{stage_idx}_{k}", label=str(v))
-                        ui.tags.p(
-                            """
-                            Yield coefficients of biomass, product, and ATP
-                            (in grams per gram substrate consumed).
-                            """
-                        )
-
-                @expressify
-                def rates_inputs(stage_idx):
-                    with ui.card():
-                        ui.card_header("Specific rates")
-                        with ui.layout_column_wrap(
-                            width=1 / (3 if stage_idx == 1 else 2)
-                        ):
-                            for k, v in params.rates.items():
-                                if stage_idx == 2 and v.stage_1_only:
-                                    continue
-                                with ui.div():
-                                    ui.input_text(id=f"s{stage_idx}_{k}", label=str(v))
-                                    ui.tags.p(v.description)
-
+                # the stage-specific parameters are handled in a module
                 with ui.card():
                     with ui.navset_bar(
                         title="Stage-specific parameters", navbar_options=NAVBAR_OPTIONS
                     ):
                         for stage_idx in [1, 2]:
                             with ui.nav_panel(f"Stage {stage_idx}"):
-                                stage_specific_intro(stage_idx)
-                                yield_inputs(stage_idx)
-                                rates_inputs(stage_idx)
+                                modules.stage_specific_inputs(
+                                    f"s{stage_idx}",
+                                    stage_idx=stage_idx,
+                                    inputs_obj=INPUTS,
+                                )
 
     for stage_1_type in grid_search.STAGE_1_TYPES:
         with ui.nav_panel(f"Results {stage_1_type.feed_type} feed"):
@@ -796,10 +707,23 @@ def apply_selected_defaults():
         selected = params.defaults[input.selected_defaults()]
         default_set_name = selected["title"]
         default_values = selected["values"]
+
+        hoi = True
+        hoi = False
+        if hoi:
+            s1 = set(default_values.keys())
+            s2 = set(INPUTS._dict.keys())
+            breakpoint()
+            s1 - s2
+            s2
+            s2 - s1
+            default_values
+
         for k, v in default_values.items():
             # only use default if field is empty
-            if not input[k]():
-                ui.update_text(k, value=round(v, 3))
+            if not INPUTS.get(k):
+                INPUTS.set(k, round(v, 3))
+                # ui.update_text(k, value=round(v, 3))
         ui.notification_show(
             ui.HTML(f"Applied defaults from '{default_set_name}'"),
             type="message",
@@ -819,82 +743,20 @@ def apply_selected_defaults():
 @reactive.event(input.clear)
 def clear_all_inputs():
     """Clear all input fields"""
-    for k in params.common.keys():
-        ui.update_text(k, value="")
-
-    for k, v in params.stage_specific.items():
-        ui.update_text(f"s1_{k}", value="")
-        if v.stage_1_only:
-            continue
-        ui.update_text(f"s2_{k}", value="")
-
+    INPUTS.clear()
     ui.notification_show("All fields cleared", type="message", duration=3)
 
 
-def validate_param(value, required):
-    """Make sure the input values are numeric and non-negative."""
-    if required and (value is None or value == ""):
-        return "Required"
-    if not value:
-        return
-    try:
-        value = float(value)
-    except ValueError:
-        return "Needs to be numeric"
-    if value < 0:
-        return "Needs to be non-negative"
-
-
-def parse_params():
-    """Parse the params input by the user."""
-    if not input_validator.is_valid():
-        # return early if inputs not valid
-        return
-    parsed = {}
-    parsed["common"] = {
-        k: float(input[k]()) for k, v in params.common.items() if v.required
-    }
-    parsed["s1"] = {k: float(input[f"s1_{k}"]()) for k in params.stage_specific.keys()}
-    # use params from stage 1 in stage two unless specified otherwise
-    parsed["s2"] = parsed["s1"].copy()
-    for k, v in params.stage_specific.items():
-        if v.stage_1_only:
-            # skip stage 2 params that are only available for stage 1
-            continue
-        value = input[f"s2_{k}"]()
-        if value:
-            parsed["s2"][k] = float(value)
-    return parsed
-
-
-# input validation rules; validate each param to be numeric etc
-input_validator = InputValidator()
-for k, v in params.common.items():
-    input_validator.add_rule(k, functools.partial(validate_param, required=v.required))
-for k, v in params.stage_specific.items():
-    # remember that the IDs of the stage-specific params are prefixed with `s1_` and
-    # `s2_`
-    input_validator.add_rule(
-        f"s1_{k}", functools.partial(validate_param, required=True)
-    )
-    if v.stage_1_only:
-        # skip stage 2 params that are only available for stage 1
-        continue
-    input_validator.add_rule(
-        f"s2_{k}", functools.partial(validate_param, required=False)
-    )
-
-
 def validate_V_batch(value):
-    # we still need to call `validate_param()` since `InputValidator` only keeps track
-    # of the last validation rule (i.e. `validate_param` added as rule above is
+    # we still need to call `util.validate_param()` since `InputValidator` only keeps track
+    # of the last validation rule (i.e. `util.validate_param` added as rule above is
     # overwritten)
-    msg = validate_param(value, True)
+    msg = util.validate_param(value, True)
     if msg is not None:
         return msg
     try:
         # only compare with `V_max` if it has already been provided
-        V_max = float(input["V_max"]())
+        V_max = INPUTS.get("V_max")
     except ValueError:
         return
     if float(value) >= V_max:
@@ -902,15 +764,15 @@ def validate_V_batch(value):
 
 
 def validate_V_max(value):
-    # we still need to call `validate_param()` since `InputValidator` only keeps track
-    # of the last validation rule (i.e. `validate_param` added as rule above is
+    # we still need to call `util.validate_param()` since `InputValidator` only keeps track
+    # of the last validation rule (i.e. `util.validate_param` added as rule above is
     # overwritten)
-    msg = validate_param(value, True)
+    msg = util.validate_param(value, True)
     if msg is not None:
         return msg
     try:
         # only compare with `V_batch` if it has already been provided
-        V_batch = float(input["V_batch"]())
+        V_batch = INPUTS.get("V_batch")
     except ValueError:
         return
     if float(value) <= V_batch:
@@ -918,15 +780,15 @@ def validate_V_max(value):
 
 
 def validate_mu_max_feed(value):
-    # we still need to call `validate_param()` since `InputValidator` only keeps track
-    # of the last validation rule (i.e. `validate_param` added as rule above is
+    # we still need to call `util.validate_param()` since `InputValidator` only keeps track
+    # of the last validation rule (i.e. `util.validate_param` added as rule above is
     # overwritten)
-    msg = validate_param(value, True)
+    msg = util.validate_param(value, True)
     if msg is not None:
         return msg
     try:
         # only compare with `s1_mu_max_phys` if it has already been provided
-        mu_max_phys = float(input["s1_mu_max_phys"]())
+        mu_max_phys = INPUTS.get("s1_mu_max_phys")
     except ValueError:
         return
     if float(value) > mu_max_phys:
@@ -934,29 +796,26 @@ def validate_mu_max_feed(value):
 
 
 def validate_mu_max_phys(value):
-    # we still need to call `validate_param()` since `InputValidator` only keeps track
-    # of the last validation rule (i.e. `validate_param` added as rule above is
+    # we still need to call `util.validate_param()` since `InputValidator` only keeps track
+    # of the last validation rule (i.e. `util.validate_param` added as rule above is
     # overwritten)
-    msg = validate_param(value, True)
+    msg = util.validate_param(value, True)
     if msg is not None:
         return msg
     if not value:
         return
     try:
         # only compare with `mu_max_feed` if it has already been provided
-        mu_max_feed = float(input["mu_max_feed"]())
+        mu_max_feed = INPUTS.get("mu_max_feed")
     except ValueError:
         return
     if float(value) < mu_max_feed:
         return "must be at least as big as the maximum growth rate of the feed"
 
 
-input_validator.add_rule("V_batch", validate_V_batch)
-input_validator.add_rule("V_max", validate_V_max)
-input_validator.add_rule("mu_max_feed", validate_mu_max_feed)
-input_validator.add_rule("s1_mu_max_phys", functools.partial(validate_mu_max_phys))
-
-
-@reactive.effect
-def _():
-    input_validator.enable()
+# add rules to make sure that `V_batch < V_max`
+INPUTS.add_rule("V_batch", validate_V_batch)
+INPUTS.add_rule("V_max", validate_V_max)
+# add rule to make sure that `mu_max_feed` is not larger than `mu_max_phys` (the
+# accompanying rule for `s1_mu_max_phys` is added in the `stage_specific_inputs` module)
+INPUTS.add_rule("mu_max_feed", validate_mu_max_feed)

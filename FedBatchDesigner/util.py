@@ -4,6 +4,20 @@ EPSILON = np.finfo(float).eps
 ROUND_DIGITS = 5
 
 
+def validate_param(value, required):
+    """Make sure the input values are numeric and non-negative."""
+    if required and (value is None or value == ""):
+        return "Required"
+    if not value:
+        return
+    try:
+        value = float(value)
+    except ValueError:
+        return "Needs to be numeric"
+    if value < 0:
+        return "Needs to be non-negative"
+
+
 def get_df_row_with_index(df, idx):
     """
     Get a row from a `pd.DataFrame` as Series including the index and index name(s).

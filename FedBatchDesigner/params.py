@@ -120,6 +120,16 @@ stage_specific = {
     ),
 }
 
+input_ids = [
+    *[key for key in common.keys()],
+    *[f"s1_{key}" for key in stage_specific.keys()],
+    *[
+        f"s2_{key}"
+        for key in stage_specific.keys()
+        if not stage_specific[key].stage_1_only
+    ],
+]
+
 results = {
     "mu": ResultParam(
         "µ",
