@@ -15,7 +15,7 @@ import utils_for_tests as util
         ("exp", process_stages.ExponentialStageAnalytical),
     ],
 )
-def test_bla(name, stage_1_class, test_data_dir, valine_defaults_parsed):
+def test_valine_defaults(name, stage_1_class, test_data_dir, valine_defaults_parsed):
     parsed_params = valine_defaults_parsed
     X_batch = parsed_params["common"]["V_batch"] * parsed_params["common"]["x_batch"]
     s1 = stage_1_class(
