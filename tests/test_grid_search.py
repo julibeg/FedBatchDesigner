@@ -2,20 +2,15 @@ import pandas as pd
 import pytest
 
 import grid_search
-import process_stages
 
 import utils_for_tests as util
 
 
 @pytest.mark.parametrize(
-    "name, stage_1_class",
-    [
-        ("const", process_stages.ConstantStageAnalytical),
-        ("lin", process_stages.LinearStageConstantGrowthAnalytical),
-        ("exp", process_stages.ExponentialStageAnalytical),
-    ],
+    "stage_1_class",
+    grid_search.STAGE_1_TYPES,
 )
-def test_valine_defaults(name, stage_1_class, test_data_dir, valine_defaults_parsed):
+def test_valine_defaults(stage_1_class, test_data_dir, valine_defaults_parsed):
     parsed_params = valine_defaults_parsed
     X_batch = parsed_params["common"]["V_batch"] * parsed_params["common"]["x_batch"]
     s1 = stage_1_class(
@@ -24,19 +19,21 @@ def test_valine_defaults(name, stage_1_class, test_data_dir, valine_defaults_par
         P0=0,
         **parsed_params["s1"],
     )
-    results = grid_search.run(
+    results_df = grid_search.run(
         stage_1=s1,
         input_params=parsed_params,
     )
     # we don't need the index just for comparing
-    results = results.reset_index()
-    expected = pd.read_csv(test_data_dir / f"grid_search_{name}.csv")
-    assert results.shape == expected.shape
-    assert (results.columns == expected.columns).all()
-    for col in results.columns:
+    results_df = results_df.reset_index()
+    expected_df = pd.read_csv(
+        test_data_dir / f"grid_search_{stage_1_class.feed_type}.csv"
+    )
+    assert results_df.shape == expected_df.shape
+    assert (results_df.columns == expected_df.columns).all()
+    for col in results_df.columns:
         util.compare_series(
-            results[col],
-            expected[col],
+            results_df[col],
+            expected_df[col],
             f"grid_search_comb: {col}",
             atol=1e-12,
         )
