@@ -157,9 +157,6 @@ def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
                         functools.partial(
                             util.validate_param,
                             required=stage_idx == 1,
-                            # disable_toggle=input.anaerobic
-                            # if stage_idx == 1 and k == "rho"
-                            # else None,
                         ),
                     )
                     ui.tags.p(v.description)
