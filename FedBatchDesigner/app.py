@@ -92,7 +92,11 @@ def card_with_nav_header(title):
     """
     with ui.card():
         with ui.navset_bar(
-            title=title, navbar_options=ui.navbar_options(bg="#efefef", underline=False)
+            title=title,
+            navbar_options=ui.navbar_options(
+                bg="#efefef",
+                underline=False,
+            ),
         ):
             with ui.nav_panel(None):
                 yield
@@ -638,7 +642,10 @@ with ui.navset_bar(id=MAIN_NAVBAR_ID, title=None, navbar_options=NAVBAR_OPTIONS)
                                 )
 
     for stage_1_type in grid_search.STAGE_1_TYPES:
-        with ui.nav_panel(f"Results {stage_1_type.feed_type} feed"):
+        with ui.nav_panel(
+            f"Results {stage_1_type.feed_type} feed",
+            value=f"{stage_1_type.feed_type}_results",
+        ):
             results(f"{stage_1_type.feed_type}_results", stage_1_type)
 
     with ui.nav_panel("Further information"):
