@@ -4,6 +4,7 @@ from shiny import reactive
 from shiny.express import ui, expressify, module
 from shiny_validate import InputValidator
 
+import icons
 import params
 import util
 
@@ -51,6 +52,21 @@ def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
                 """
                 )
 
+    @expressify
+    def anaerobic_checkbox():
+        with ui.div():
+            ui.input_checkbox(
+                "anaerobic",
+                "Anaerobic fermentative product",
+                value=False,
+            )
+            ui.p(
+                """
+                Tick this box if your product is generated in anaerobic fermentation
+                (e.g. ethanol or lactic acid) and this stage is anaerobic.
+                """
+            )
+
     if stage_idx == 1:
         # show the text first and then the inputs below
         text_content(stage_idx)
@@ -58,11 +74,7 @@ def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
         with ui.card():
             with ui.layout_column_wrap(width=1 / 3):
                 with ui.div(style="display: flex; align-items: center; height: 100%;"):
-                    ui.input_checkbox(
-                        "anaerobic",
-                        "Anaerobic stage (anaerobic fermentative product)",
-                        value=False,
-                    )
+                    anaerobic_checkbox()
                 for k in ["mu_max_phys", "s_f"]:
                     v = params.stage_specific[k]
                     with ui.div():
@@ -105,11 +117,7 @@ def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
                 style=("display: flex;" "align-items: center;" "height: 100%;")
             ):
                 with ui.card():
-                    ui.input_checkbox(
-                        "anaerobic",
-                        "Anaerobic stage (anaerobic fermentative product)",
-                        value=False,
-                    )
+                    anaerobic_checkbox()
                     k = "s_f"
                     v = params.stage_specific[k]
                     with ui.div():
