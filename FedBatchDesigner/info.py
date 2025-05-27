@@ -227,9 +227,9 @@ def info():
                 \)""",
             )
 
-    with ui.card():
-        ui.card_header("Limitations")
-        with formula_list():
+    with ui.layout_column_wrap(width=1 / 2):
+        with ui.card():
+            ui.card_header("Limitations")
             ui.tags.li(
                 """
                 Productivity and volumetric productivity relate only to the feed phase
@@ -241,5 +241,20 @@ def info():
                 """
                 Non-feed volume changes (e.g. evaporation, base addition for pH control)
                 are not considered.
+                """
+            )
+        with ui.card():
+            ui.card_header("Extra considerations for anaerobic fermentation products")
+            ui.tags.p(
+                """
+                The framework assumes that substrate is consumed for either maintenance,
+                biomass, or product formation independently. In the case of anaerobic
+                fermentation products (like ethanol or butanol), however, this is not
+                the case because then no substrat is fully "used up" for ATP production.
+                Instead, ATP is produced via substrate-level phosphorylation
+                concomitantly with product formation. To represent this in the model,
+                the maintenance coefficient \(\\rho\) is set to zero. This is done
+                automatically when ticking the corresponding checkbox in the
+                stage-specific input panels.
                 """
             )
