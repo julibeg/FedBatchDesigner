@@ -24,6 +24,9 @@ def valine_defaults_parsed():
     parsed = {"common": {}, "s1": {}, "s2": {}}
 
     for k, v in params.defaults["valine_two_stage"]["values"].items():
+        if k.endswith("anaerobic"):
+            # this is the anaerobic checkbox --> skip
+            continue
         if k.startswith("s1_"):
             parsed["s1"][k[3:]] = round(v, 3)
         elif k.startswith("s2_"):
