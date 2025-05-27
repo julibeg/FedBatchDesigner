@@ -8,22 +8,6 @@ import params
 import util
 
 
-def validate_param(value, required, disable_toggle=None):
-    """Make sure the input values are numeric and non-negative."""
-    if disable_toggle is not None and disable_toggle():
-        return
-    if required and (value is None or value == ""):
-        return "Required"
-    if not value:
-        return
-    try:
-        value = float(value)
-    except ValueError:
-        return "Needs to be numeric"
-    if value < 0:
-        return "Needs to be non-negative"
-
-
 @module
 def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
     # get the module ID to use as label for the local validator and prefix for the input
@@ -87,7 +71,7 @@ def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
                             id=input_id, label=str(v), validator=local_validator
                         )
                         inputs_obj[input_id].add_rule(
-                            functools.partial(validate_param, required=True)
+                            functools.partial(util.validate_param, required=True)
                         )
                         ui.tags.p(v.description)
 
@@ -134,7 +118,7 @@ def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
                             id=input_id, label=str(v), validator=local_validator
                         )
                         inputs_obj[input_id].add_rule(
-                            functools.partial(validate_param, required=False)
+                            functools.partial(util.validate_param, required=False)
                         )
                         ui.tags.p(v.description)
 
@@ -149,7 +133,7 @@ def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
                     id=input_id, label=str(v), validator=local_validator
                 )
                 inputs_obj[input_id].add_rule(
-                    functools.partial(validate_param, required=stage_idx == 1),
+                    functools.partial(util.validate_param, required=stage_idx == 1),
                 )
         ui.tags.p(
             """
@@ -171,7 +155,7 @@ def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
                     )
                     inputs_obj[input_id].add_rule(
                         functools.partial(
-                            validate_param,
+                            util.validate_param,
                             required=stage_idx == 1,
                             # disable_toggle=input.anaerobic
                             # if stage_idx == 1 and k == "rho"
