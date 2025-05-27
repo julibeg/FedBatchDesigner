@@ -4,8 +4,10 @@ EPSILON = np.finfo(float).eps
 ROUND_DIGITS = 5
 
 
-def validate_param(value, required):
+def validate_param(value, required, disable_toggle=None):
     """Make sure the input values are numeric and non-negative."""
+    if disable_toggle is not None and disable_toggle():
+        return
     if required and (value is None or value == ""):
         return "Required"
     if not value:
