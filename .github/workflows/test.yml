@@ -20,6 +20,6 @@ jobs:
           init-shell: bash
           cache-environment: true
           post-cleanup: "all"
-      - name: run in bash
-        run: python --version && pytest --version
+      - name: tests
+        run: pytest
         shell: bash -el {0}
