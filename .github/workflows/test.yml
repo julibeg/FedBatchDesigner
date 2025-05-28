@@ -4,12 +4,12 @@ on:
   push:
     branches: ["test-ci"]
 
-permissions:
-  contents: read
-
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
 
     steps:
       - uses: actions/checkout@v4
@@ -20,6 +20,7 @@ jobs:
           init-shell: bash
           cache-environment: true
           post-cleanup: "all"
-      - name: tests
+      - name: init playwright
+        run: playwright install
+      - name: run pytest
         run: pytest
-        shell: bash -el {0}
