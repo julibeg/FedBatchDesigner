@@ -73,8 +73,7 @@ def stage_specific_inputs(input, _output, session, stage_idx, inputs_obj):
 
         with ui.card():
             with ui.layout_column_wrap(width=1 / 3):
-                with ui.div(style="display: flex; align-items: center; height: 100%;"):
-                    anaerobic_checkbox()
+                anaerobic_checkbox()
                 for k in ["mu_max_phys", "s_f"]:
                     v = params.stage_specific[k]
                     with ui.div():
