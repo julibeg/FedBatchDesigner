@@ -1,3 +1,5 @@
+Version at time of journal publication: [![DOI code version at paper publication:](https://zenodo.org/badge/DOI/10.5281/zenodo.15863161.svg)](https://doi.org/10.5281/zenodo.15863161)
+
 # FedBatchDesigner
 
 A user-friendly web tool for modeling and optimizing growth-arrested fed-batch bioprocesses.
