@@ -1,6 +1,7 @@
 import pandas as pd
 import pytest
 
+from playwright.sync_api import expect
 from shiny.playwright import controller
 from shiny.pytest import create_app_fixture
 
@@ -56,6 +57,7 @@ def grid_search_valine_two_stage_defaults(page, app):
     page.goto(app.url)
 
     # define controllers
+    navset_bar = controller.NavsetBar(page, "main_navbar")
     defaults_open_modal_btn = controller.InputActionButton(page, "populate_defaults")
     defaults_radio_select = controller.InputRadioButtons(page, "selected_defaults")
     defaults_confirm_btn = controller.InputActionButton(page, "apply_defaults")
@@ -65,6 +67,12 @@ def grid_search_valine_two_stage_defaults(page, app):
     defaults_radio_select.set("valine_two_stage")
     defaults_confirm_btn.click()
     submit_btn.click()
+    # wait for the modal to disappear and make sure we were redirected to the results
+    # page
+    wait_modal = page.locator("#wait_modal")
+    expect(wait_modal).not_to_be_attached(timeout=60_000)
+    page.wait_for_timeout(2_000)
+    navset_bar.expect_value("constant_results")
 
 
 @pytest.mark.parametrize("stage_1_type", grid_search.STAGE_1_TYPES)

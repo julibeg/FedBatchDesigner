@@ -173,6 +173,7 @@ def submit_button():
             title="Calculating results...",
             footer="This may take a moment.",
             easy_close=True,
+            id="wait_modal",
         )
         ui.modal_show(wait_modal)
 
