@@ -169,12 +169,12 @@ def submit_button():
             return
 
         # show a modal while the grid search is running
-        m = ui.modal(
+        wait_modal = ui.modal(
             title="Calculating results...",
             footer="This may take a moment.",
             easy_close=True,
         )
-        ui.modal_show(m)
+        ui.modal_show(wait_modal)
 
         for stage_cls, instance in stage_instances.items():
             grid_search_results_df = grid_search.run(instance, parsed_params)
@@ -662,7 +662,7 @@ def jump_to_info_panel():
 @reactive.event(input.populate_defaults)
 def populate_defaults_button():
     """Show modal with default set options"""
-    modal = ui.modal(
+    select_defaults_modal = ui.modal(
         ui.p(
             """
             Select a set of default parameters to populate empty fields with. The
@@ -708,7 +708,7 @@ def populate_defaults_button():
         footer=None,
         size="l",
     )
-    ui.modal_show(modal)
+    ui.modal_show(select_defaults_modal)
 
 
 @reactive.Effect
